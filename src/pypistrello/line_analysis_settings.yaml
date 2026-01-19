@@ -1,0 +1,39 @@
+#
+# Copyright 2026 Universidad Complutense de Madrid
+#
+# This file is part of pypistrello.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# License-Filename: LICENSE
+#
+
+# ......................................... General
+general:
+  trapz_nbins: 100
+  manual_trapz_check: True
+  plot_residuals: True
+  plot_simulated_spectra: False
+
+plotting:
+  zoom_plot: [6536.47, 6784.90]
+  y_padding: 0.10
+
+  plots_per_page: [4, 2]   # rows, cols
+  show_preview: True
+  save_pdf: True
+  pdf_name: "plots_trapz_spectrum.pdf"
+
+# ......................................... Line
+line:
+ window_line:
+ fit_region: [6564.51,6575.80]
+ line_model_fit: True  # old "sigma estimation"
+# ........................................ Continuum
+continuum:
+  window_cont:
+  continuum_region: [6520.08, 6620.11]
+  excluded_region:
+    - [6554.14, 6559.96]
+    - [6588.21, 6594.35]
+
+  poly_order_cont: 1

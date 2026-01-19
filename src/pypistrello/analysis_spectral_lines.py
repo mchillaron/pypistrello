@@ -13,14 +13,18 @@ import argparse
 import os
 import re
 
-from .load_fits_table import load_fits_table
-from .load_wavelength_range import load_wavelength_range
+from .file_loading.load_fits_table import load_fits_table
+from .file_loading.load_wavelength_range import load_wavelength_range
+from .file_loading.load_yaml_file import load_yaml_file
+from .file_loading.load_yaml_file import validate_region_config
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
+from .line_fitting.main_line_fitting import main_line_fitting
 
 def analysis_spectral_lines(fits_path, 
                             output_dir_path, 
                             wavelength_path, 
                             config_path, 
+                            table_parameters_path,
                             redshift, 
                             line_restframe, 
                             diagnostic_spectra):
@@ -47,7 +51,7 @@ def analysis_spectral_lines(fits_path,
     # load the FITS table from fits_path
     spectra_table = load_fits_table(fits_path)
     print(f"INFO: FITS table loaded from {fits_path}. Check below for a preview:")
-    print(spectra_table[:10])  # show in the terminal the first 20 rows of the table
+    print(spectra_table[:10])  # show in the terminal the first 10 rows of the table
     # show also the header of the table
     # print(spectra_table.meta)
 
@@ -58,6 +62,13 @@ def analysis_spectral_lines(fits_path,
     # Diagnostic plot to prepare analysis
     if diagnostic_spectra is not None:
         plot_diagnostic_spectra(spectra_table, wavelength_range, diagnostic_spectra, output_dir_path, redshift, line_restframe)
+    
+    # After the diagnostic plot, we already have all the parameters to fill in the YAML file.
+    config_parameters = load_yaml_file(config_path)
+
+    tab_line_fit = main_line_fitting(output_dir_path, spectra_table, wavelength_range, config_parameters,
+                     table_parameters_path, redshift, line_restframe)
+    print(tab_line_fit)
     
 
 
@@ -70,8 +81,9 @@ def main():
     parser.add_argument('-w', '--wavelength-range', type=str, required=True, help='Wavelength range to analyze, format: CSV')
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for analysis')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
+    parser.add_argument('-t', '--table-parameters', type=str, help='Name of FITS table to save the line-fit parameters. Include .fits extension.')
     parser.add_argument('-d', '--diagnostic-spectra', type=int, nargs=4, metavar=("x1", "x2", "y1", "y2"), help="Coordinates of spectra to integrate for diagnostic plot: x1 x2 y1 y2. FITS indices.")
-    parser.add_argument('-z', '--redshift', type=float, default=0.0, help='Redshift value to adjust spectral lines (default: 0.0)')
+    parser.add_argument('-z', '--redshift', type=float, required=True, default=0.0, help='Redshift value to adjust spectral lines (default: 0.0)')
     parser.add_argument('-lrf', '--line-restframe', type=float, nargs='+', required=True, help='Rest-frame wavelength of spectral line to analyze')
     args = parser.parse_args()
 
@@ -79,6 +91,7 @@ def main():
     wavelength_filename = args.wavelength_range
     config_filename = args.config_file
     output_dir = args.output_dir
+    table_parameters = args.table_parameters
     diagnostic_spectra = args.diagnostic_spectra
     redshift = args.redshift
     line_restframe = args.line_restframe
@@ -126,13 +139,19 @@ def main():
         os.makedirs(output_dir)
         print(f"INFO: Created output directory: {output_dir}")
     
-
     # CONFIGURATION YAML FILE PROTECTIONS
     config_path = working_dir / config_filename
     if not os.path.isfile(config_filename):
         raise FileNotFoundError(f"Configuration file '{config_filename}' does not exist. Please provide a valid file path.")
     if not re.search(r'\.ya?ml$', config_filename, re.IGNORECASE):
         raise ValueError(f"Configuration file '{config_filename}' is not a YAML file. Please provide a valid YAML file.")
+    
+    # TABLE PARAMETERS
+    # protection against non-FITS files
+    if not re.search(r'\.fits?$', table_parameters, re.IGNORECASE):
+        raise ValueError(f"Input file '{table_parameters}' is not a FIT/FITS file. Please provide a valid FIT/FITS file.")
+    
+    table_parameters_path = output_dir_path / table_parameters
     
     # WAVELENGTH FILE
     wavelength_path = working_dir / wavelength_filename
@@ -176,7 +195,9 @@ def main():
         print(f"For the diagnostic plot, the spectra will be integrated over the provided coordinates: {x1, x2, y1, y2}")
     
 
-    analysis_spectral_lines(fits_path, output_dir_path, wavelength_path, config_path, redshift, line_restframe, diagnostic_spectra)
+    analysis_spectral_lines(fits_path, output_dir_path, 
+                            wavelength_path, config_path, table_parameters_path,
+                            redshift, line_restframe, diagnostic_spectra)
 
 
 if __name__ == "__main__":
