@@ -28,7 +28,7 @@ from .calculate_integrated_spectrum import calculate_integrated_spectrum
 
 
 def plot_diagnostic_spectra(
-    spectra_table,
+    cube_data,
     wavelength_range,
     diagnostic_spectra,
     output_dir_path,
@@ -58,7 +58,7 @@ def plot_diagnostic_spectra(
     line_restframe = np.array(line_restframe)
 
     integrated_spectrum = calculate_integrated_spectrum(
-        spectra_table, wavelength_range, diagnostic_spectra
+        cube_data, wavelength_range, diagnostic_spectra
     )
 
     state = {

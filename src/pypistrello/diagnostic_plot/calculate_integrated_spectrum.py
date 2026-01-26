@@ -17,7 +17,56 @@
 
 import numpy as np
 
-def calculate_integrated_spectrum(spectra_table, wavelength_range, diagnostic_spectra):
+def calculate_integrated_spectrum(cube_data, wavelength_range, diagnostic_spectra):
+    """
+    Calculate the integrated spectrum over a user-defined spatial region
+    from a FITS data cube.
+
+    Parameters
+    ----------
+    cube_data : numpy.ndarray
+        3D array with shape (nw, ny, nx) containing the spectral cube data.
+    wavelength_range : numpy.ndarray
+        1D array of wavelength values with length nw.
+    diagnostic_spectra : tuple of int
+        Spatial region to integrate: (x1, x2, y1, y2) in FITS coordinates (1-based).
+
+    Returns
+    -------
+    integrated_spectrum : numpy.ndarray
+        1D array containing the summed spectrum over the selected region.
+    """
+
+    x1, x2, y1, y2 = diagnostic_spectra
+
+    # Convert FITS (1-based) to NumPy (0-based)
+    x1 -= 1
+    x2 -= 1
+    y1 -= 1
+    y2 -= 1
+
+    nw, ny, nx = cube_data.shape
+    print(cube_data.shape)
+
+    if wavelength_range.shape[0] != nw:
+        raise ValueError("Wavelength range length does not match cube spectral axis.")
+
+    if not (0 <= x1 <= x2 < nx and 0 <= y1 <= y2 < ny):
+        raise ValueError("Selected region is outside cube boundaries.")
+
+    subcube = cube_data[:, y1:y2+1, x1:x2+1]
+    integrated_spectrum = np.sum(subcube, axis=(1, 2)) # Sum over spatial dimensions (y, x)
+    n_spectra = (y2 - y1 + 1) * (x2 - x1 + 1)
+
+    if n_spectra == 0:
+        raise RuntimeError("No spectra found in selected region.")
+
+    print(f"INFO: Integrated {n_spectra} spectra.")
+    return integrated_spectrum
+
+
+
+def calculate_integrated_spectrum_table(spectra_table, wavelength_range, diagnostic_spectra):
     """Calculate the integrated spectrum over a user-defined spatial region.
 
     This function sums all individual spectra contained within a rectangular region 
