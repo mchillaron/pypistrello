@@ -9,6 +9,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.interpolate import griddata
 
 def make_a_map(
     table_results_fitting,
@@ -70,3 +71,64 @@ def make_a_map(
     plt.show()
 
     return image
+
+
+def build_2d_map(x, y, values, interpolate=True, method="nearest"):
+    """
+    Build a 2D map from x, y, values.
+
+    Parameters
+    ----------
+    interpolate : bool
+        If True, interpolate missing pixels
+    method : str
+        Interpolation method for griddata
+    """
+
+    x = np.asarray(x).astype(int)
+    y = np.asarray(y).astype(int)
+
+    nx = x.max() + 1
+    ny = y.max() + 1
+
+    zi = np.full((ny, nx), np.nan)
+
+    if interpolate:
+        xi = np.arange(nx)
+        yi = np.arange(ny)
+        xi_grid, yi_grid = np.meshgrid(xi, yi)
+
+        zi = griddata(
+            (x, y),
+            values,
+            (xi_grid, yi_grid),
+            method=method
+        )
+    else:
+        zi[y, x] = values
+
+    return zi
+
+
+
+
+
+def build_2d_map_always_interpolate(x, y, values):
+    xi = np.unique(x)
+    yi = np.unique(y)
+    xi_grid, yi_grid = np.meshgrid(xi, yi)
+
+    zi = griddata(
+        (x, y),
+        values,
+        (xi_grid, yi_grid),
+        method="nearest"
+    )
+
+    return xi_grid, yi_grid, zi
+
+def save_contours(output_path, contours):
+    np.savez(output_path, **contours)
+
+def load_contours(contour_file):
+    return dict(np.load(contour_file))

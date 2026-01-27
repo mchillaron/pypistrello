@@ -28,7 +28,7 @@ from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra
 from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
 from .line_fitting.main_line_fitting import save_table
-from .line_fitting.map_plotting import make_a_map
+from .line_fitting.map_plots import make_a_map
 
 RED     = "\033[91m"
 GREEN   = "\033[92m"
@@ -196,18 +196,19 @@ def main():
     output_dir_path = working_dir / output_dir
     if os.path.exists(output_dir):
         print(f"WARNING: Output directory '{output_dir}' already exists.")                              # ask user for confirmation to overwrite
-        #response = input("Do you want to continue and overwrite existing files? (y/n): ")
-        #if response.lower() != 'y':
-        #    print("Exiting program to prevent overwriting existing files.")
-        #    exit(0)
-        #else:
-        #    print(f"{GREEN}INFO:{RESET} Using existing output directory: {output_dir}")
+        response = input("Do you want to continue and overwrite existing files? (y/n): ")
+        if response.lower() != 'y':
+            print("Exiting program to prevent overwriting existing files.")
+            exit(0)
+        else:
+            print(f"{GREEN}INFO:{RESET} Using existing output directory: {output_dir}")
     else:
         os.makedirs(output_dir)
         print(f"{GREEN}INFO:{RESET} Created output directory: {output_dir}")
     
     # CONFIGURATION YAML FILE PROTECTIONS
     config_path = working_dir / config_filename
+    print(f"Checking configuration file in {config_path}")
     if not os.path.isfile(config_filename):
         raise FileNotFoundError(f"Configuration file '{config_filename}' does not exist. Please provide a valid file path.")
     if not re.search(r'\.ya?ml$', config_filename, re.IGNORECASE):
