@@ -42,6 +42,7 @@ Repository = "https://github.com/mchillaron/pypistrello.git"
 
 [project.scripts]
 pypistrello = "pypistrello.analysis_spectral_lines:main"
+pypistrello-plotting = "pypistrello.map_plotting:main"
 
 # pyproject.toml
 [tool.setuptools_scm]
