@@ -26,7 +26,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
 dependencies = [
-    "teareduce"
+    "teareduce",
+    "numina"
 ]
 
 [project.optional-dependencies]
