@@ -7,9 +7,12 @@
 # License-Filename: LICENSE
 #
 
+from astropy.table import Column
 from pathlib import Path
 
 import argparse
+import astropy.units as u
+import numpy as np
 import os
 import re
 
@@ -18,9 +21,23 @@ from .file_loading.load_fits_cube import read_fits_cube
 from .file_loading.load_wavelength_range import load_wavelength_range
 from .file_loading.load_yaml_file import load_yaml_file
 from .file_loading.get_wavelength_axis import get_wavelength_axis
-from .file_loading.load_yaml_file import validate_region_config
+
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
+
+from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra
+from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
+from .line_fitting.main_line_fitting import save_table
+from .line_fitting.map_plotting import make_a_map
+
+RED     = "\033[91m"
+GREEN   = "\033[92m"
+YELLOW  = "\033[93m"
+BLUE    = "\033[94m"
+MAGENTA = "\033[95m"
+CYAN    = "\033[96m"
+BOLD = "\033[1m"
+RESET   = "\033[0m"
 
 def analysis_spectral_lines(fits_path,
                             data_extension,
@@ -30,7 +47,8 @@ def analysis_spectral_lines(fits_path,
                             table_parameters_path,
                             redshift, 
                             line_restframe, 
-                            diagnostic_spectra):
+                            diagnostic_spectra,
+                            map_plotting):
     """Main function to analyze spectral lines from a FITS file and save results to an output directory.
     
     Parameters
@@ -54,36 +72,66 @@ def analysis_spectral_lines(fits_path,
     """
     
     if data_extension == 0:
-        print("INFO: Using extension 0 as data_header")
+        print(f"{GREEN}INFO:{RESET} Using extension 0 as data_header")
     else:
-        print(f"INFO: Using extension 0 as primary_header and extension {data_extension} as data_header")
+        print(f"{GREEN}INFO:{RESET} Using extension 0 as primary_header and extension {data_extension} as data_header")
 
     # load the FITS datacube and information from headers
+    print(f"{BLUE}{BOLD} Reading header and data from FITS cube{RESET}")
     primary_header, data_header, cube_data = read_fits_cube(fits_path, data_extension)
+    print("Cube headers and data read successfully")
 
-    # load the wavelength range from wavelength_path
-    if wavelength_path is not None:
-        wavelength_range = load_wavelength_range(wavelength_path)
-        print(f"INFO: Wavelength range loaded from {wavelength_path}.")
+    if map_plotting:
+        print(f"{MAGENTA}{BOLD} Plotting maps{RESET}")
+        # import FITS table from table_parameters_path
+        table_results = load_fits_table(table_parameters_path)
+        print(table_results)
+
+        # jump directly into the map-plotting tool
+        #vmin, vmax = np.nanpercentile(flux_map, [5, 95])
+        flux_map = make_a_map(table_results, cube_data, vmin=-2e-18, vmax=6e-15, title="Hα integrated line flux")
+        velocity_map = make_a_map(table_results, cube_data, flux_col="velocity",
+                                  vmin=-100, vmax=100, 
+                                  cmap="seismic", 
+                                  title="Hα velocity (km/s)")
     else:
-        wavelength_range = get_wavelength_axis(data_header, primary_header)
-        print("INFO: Wavelength range calculated")
-        print(wavelength_range)
 
-    # Diagnostic plot to prepare analysis
-    if diagnostic_spectra is not None:
-        plot_diagnostic_spectra(cube_data, wavelength_range, diagnostic_spectra, output_dir_path, redshift, line_restframe)
+        # load the wavelength range from wavelength_path
+        print(f"{BLUE}{BOLD} Reading wavelength range{RESET}")
+        if wavelength_path is not None:
+            wavelength_range = load_wavelength_range(wavelength_path)
+            print(f"{GREEN}INFO:{RESET} Wavelength range loaded from {wavelength_path}.")
+        else:
+            wavelength_range = get_wavelength_axis(data_header, primary_header)
+            print(f"{GREEN}INFO:{RESET} Wavelength range calculated")
+            print(wavelength_range)
+
+        # Diagnostic plot to prepare analysis
+        print(f"{BLUE}{BOLD} Generating diagnostic plot{RESET}")
+        if diagnostic_spectra is not None:
+            plot_diagnostic_spectra(cube_data, wavelength_range, diagnostic_spectra, output_dir_path, redshift, line_restframe)
+        
+        # After the diagnostic plot, we already have all the parameters to fill in the YAML file.
+        print(f"{BLUE}{BOLD} Reading parameters from YAML file{RESET}")
+        config_parameters = load_yaml_file(config_path)
+        print("YAML file read successfully")
+
+        print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum{RESET}")
+        offsets_pixel_array, fpeak_croscorr_array = crosscorrelate_spectra(cube_data, wavelength_range, config_parameters)
+
+        print(f"{BLUE}{BOLD} Calculating velocities for line {line_restframe} A{RESET}")
+        velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
+
+        table_results_fitting = main_line_fitting(output_dir_path, cube_data, 
+                                        wavelength_range, config_parameters,
+                                        table_parameters_path, redshift, line_restframe)
+        
+        # add velocity to table_results_fitting
+        table_results_fitting["velocity"] = velocity * u.km / u.s
+        print(table_results_fitting)  
+        save_table(table_results_fitting, table_parameters_path)
     
-    # After the diagnostic plot, we already have all the parameters to fill in the YAML file.
-    config_parameters = load_yaml_file(config_path)
-
-    tab_line_fit = main_line_fitting(output_dir_path, cube_data, wavelength_range, config_parameters,
-                     table_parameters_path, redshift, line_restframe)
-    print(tab_line_fit)
     
-
-
-
 
 
 def main():
@@ -97,6 +145,7 @@ def main():
     parser.add_argument('-d', '--diagnostic-spectra', type=int, nargs=4, metavar=("x1", "x2", "y1", "y2"), help="Coordinates of spectra to integrate for diagnostic plot: x1 x2 y1 y2. FITS indices.")
     parser.add_argument('-z', '--redshift', type=float, required=True, default=0.0, help='Redshift value to adjust spectral lines (default: 0.0)')
     parser.add_argument('-lrf', '--line-restframe', type=float, nargs='+', required=True, help='Rest-frame wavelength of spectral line to analyze')
+    parser.add_argument('-map', '--plotting_maps', type=bool, default=False, help='If True, only map-plotting tool works from FITS table already saved.')
     args = parser.parse_args()
 
     fits_filename = args.input_file
@@ -108,18 +157,19 @@ def main():
     diagnostic_spectra = args.diagnostic_spectra
     redshift = args.redshift
     line_restframe = args.line_restframe
+    map_plotting = args.plotting_maps
     
     print("\n")
-    print("-----------------------------  PyPISTRELLO  ------------------------------")
+    print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")
     print("\U0001F987 Python Program for Integrating Spectral lines using TRapezoids,")
     print("Error estimation and Line-features Optimization \U0001F987")
-    print("--------------------------------------------------------------------------")
+    print(f"--------------------------------------------------------------------------{RESET}")
     print("\n")
 
 
     working_dir = Path('.').resolve()
     print(f"Working directory: {working_dir}")
-    print(f"INFO: All files will be read/written relative to the working directory.")
+    print(f"{GREEN}INFO:{RESET} All files will be read/written relative to the working directory.")
 
 
     # INPUT PROTECTIONS
@@ -146,15 +196,15 @@ def main():
     output_dir_path = working_dir / output_dir
     if os.path.exists(output_dir):
         print(f"WARNING: Output directory '{output_dir}' already exists.")                              # ask user for confirmation to overwrite
-        response = input("Do you want to continue and overwrite existing files? (y/n): ")
-        if response.lower() != 'y':
-            print("Exiting program to prevent overwriting existing files.")
-            exit(0)
-        else:
-            print(f"INFO: Using existing output directory: {output_dir}")
+        #response = input("Do you want to continue and overwrite existing files? (y/n): ")
+        #if response.lower() != 'y':
+        #    print("Exiting program to prevent overwriting existing files.")
+        #    exit(0)
+        #else:
+        #    print(f"{GREEN}INFO:{RESET} Using existing output directory: {output_dir}")
     else:
         os.makedirs(output_dir)
-        print(f"INFO: Created output directory: {output_dir}")
+        print(f"{GREEN}INFO:{RESET} Created output directory: {output_dir}")
     
     # CONFIGURATION YAML FILE PROTECTIONS
     config_path = working_dir / config_filename
@@ -186,7 +236,7 @@ def main():
     if redshift < 0.0:
         raise ValueError(f"Redshift value '{redshift}' is negative. Please provide a non-negative float value.")
     if redshift == 0.0:
-        print(f"INFO: Redshift value is 0.0, no adjustment will be made to spectral lines.")
+        print(f"{GREEN}INFO:{RESET} Redshift value is 0.0, no adjustment will be made to spectral lines.")
     print(f"Redshift value: {redshift}")
     
     # LINE REST-FRAME PROTECTIONS
@@ -196,7 +246,7 @@ def main():
 
     # DIAGNOSTIC SPECTRA PROTECTIONS
     if diagnostic_spectra is None:
-        print(f"INFO: No diagnostic spectra coordinates provided, no diagnostic plot will be generated.")
+        print(f"{GREEN}INFO:{RESET} No diagnostic spectra coordinates provided, no diagnostic plot will be generated.")
     else:
         x1, x2, y1, y2 = diagnostic_spectra
         if len(diagnostic_spectra) != 4:
@@ -210,12 +260,12 @@ def main():
         if x2 < x1 or y2 < y1:
             raise ValueError(f"Diagnostic spectra coordinates are invalid. Ensure that x2 >= x1 and y2 >= y1.")
         
-        print(f"For the diagnostic plot, the spectra will be integrated over the provided coordinates: {x1, x2, y1, y2}")
+        print(f"{GREEN}INFO:{RESET}For the diagnostic plot, the spectra will be integrated over the provided coordinates: {x1, x2, y1, y2}")
     
 
     analysis_spectral_lines(fits_path, data_extension, output_dir_path, 
                             wavelength_path, config_path, table_parameters_path,
-                            redshift, line_restframe, diagnostic_spectra)
+                            redshift, line_restframe, diagnostic_spectra, map_plotting)
 
 
 if __name__ == "__main__":
