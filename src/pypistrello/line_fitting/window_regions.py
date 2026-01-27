@@ -23,12 +23,13 @@ def get_region_mask(
         left = center - window
         right = center + window
     else:
-        left_reg, right_reg = region
-        real_region_mask = (wavelength > left_reg) & (wavelength < right_reg)
-        left=np.min(wavelength[real_region_mask])
-        right=np.max(wavelength[real_region_mask])
+        left, right = region
+    
+    real_region_mask = (wavelength > left) & (wavelength < right)
+    left_real=np.min(wavelength[real_region_mask])
+    right_real=np.max(wavelength[real_region_mask])
 
-    return (wavelength > left) & (wavelength < right), left, right
+    return real_region_mask, left_real, right_real
 
 
 def apply_excluded_regions(mask, wavelength, excluded_regions):

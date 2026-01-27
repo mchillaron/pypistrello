@@ -7,33 +7,37 @@
 # License-Filename: LICENSE
 #
 
-# ......................................... General
+# General settings for the plots and PDFs saved in the output directory.
 general:
-  trapz_nbins: 100
-  manual_trapz_check: True
-  plot_residuals: True
-  plot_simulated_spectra: False
+  manual_trapz_check: True        # If True, the calculation of trapezoids is also calculated manually (if False, only numpy.trapezoids is used).
+  trapz_nbins: 100                # Number of bins for the area calculation using trapezoids in the manual mode.
+  plot_residuals: True            # Save plots with the residuals of line-fitting.
+  plot_simulated_spectra: False   # Add simulated spectra to the plots if provided.
 
 plotting:
-  zoom_plot: [6536.47, 6784.90]
-  y_padding: 0.10
+  zoom_plot: [6526.71, 6650.69]   # xmin and xmax for the fitting plots
+  y_padding: 0.10                 # fraction to adapt the y-axis depending on the y-values in the plot
 
-  plots_per_page: [4, 2]   # rows, cols
-  show_preview: True
-  save_pdf: True
+  plots_per_page: [4, 2]          # rows, cols
+  show_preview: False
+  save_pdf: True                              
   pdf_name: "plots_trapz_spectrum.pdf"
 
-# ......................................... Line
+# Line-fitting settings
 line:
- window_line:
- fit_region: [6564.51,6575.80]
- line_model_fit: True  # old "sigma estimation"
-# ........................................ Continuum
+  window_line:
+  fit_region: [6574.09, 6586.64]
+  line_model_fit: True             # old "sigma estimation"
+ 
+# Continuum-fitting settings
 continuum:
   window_cont:
-  continuum_region: [6520.08, 6620.11]
+  continuum_region: [6530.54, 6643.57]
   excluded_region:
-    - [6554.14, 6559.96]
-    - [6588.21, 6594.35]
-
+    - [6563.52, 6567.46]
+    - [6598.46, 6603.96]
   poly_order_cont: 1
+
+# Crosscorrelation
+crosscorr:
+  reference_spectrum: [87, 97]      # (x,y) coordinates in FITS format

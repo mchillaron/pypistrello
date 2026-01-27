@@ -25,78 +25,114 @@ from .save_trapz_plots_pdf import save_trapz_plots_to_pdf
 def save_table(table, filename):
     table.write(filename, overwrite=True)
 
-def main_line_fitting(output_dir_path, spectra_table, wavelength, 
-                      config_parameters, table_parameters_path, 
-                      redshift, line_restframe):
+def main_line_fitting(output_dir_path, cube_data, 
+                      wavelength, config_parameters, 
+                      table_parameters_path, redshift, line_restframe):
     
-    
+    # Preparing parameters for the fitting process:
     line_obs = np.array(line_restframe) * (1+redshift)
-    zoom_limits = config_parameters["plotting"]["zoom_plot"]
+
+    zoom_limits = np.array(config_parameters["plotting"]["zoom_plot"])
     y_pad = config_parameters["plotting"]["y_padding"]
+    
     poly_order_cont = config_parameters["continuum"]["poly_order_cont"]
+    print(f"The continuum will be fitted with a polynomial of order {poly_order_cont}")
 
     validate_region_config(config_parameters)
-    validate_region_config(config_parameters)
-
+    
     results = []
     plot_inputs = []
-    total_spectra=len(spectra_table)
-    print(total_spectra)
+    nw, ny, nx = cube_data.shape
+    total_spectra = nx * ny
+    print(f"INFO: Area calculation will start for a total number of {total_spectra} spectra")
 
-    for row in tqdm(spectra_table, total=total_spectra, 
-                    desc="Integrating area of spectrum", unit="spectrum"):
-        flux = row["spec"]
-        coords = (row["x"], row["y"])
+    for y in tqdm(range(ny), desc="Integrating spectra (rows)", unit="row"):
+        for x in range(nx):
+            flux = cube_data[:, y, x]   # extract one spectrum
+        
+            if np.all(flux == 0):       # Skip empty spectra if needed
+                continue
 
-        # Create a mask for the continuum before fitting it
-        cont_mask, cont_left, cont_right = get_region_mask(
-            wavelength,
-            center=line_obs,
-            window=config_parameters["continuum"]["window_cont"],
-            region=config_parameters["continuum"]["continuum_region"])
+            x_fits = x + 1              # Convert numpy indices → FITS coordinates (1-based)
+            y_fits = y + 1
+            coords = (x_fits, y_fits)
 
-        excluded_region = config_parameters["continuum"].get("excluded_region")
-        if excluded_region is not None:
-            cont_mask = apply_excluded_regions(cont_mask, wavelength, excluded_region)
+            # Create a mask for the continuum before fitting it
+            cont_mask, cont_left, cont_right = get_region_mask(
+                wavelength,
+                center=line_obs,
+                window=config_parameters["continuum"]["window_cont"],
+                region=np.array(config_parameters["continuum"]["continuum_region"]))
 
-        # Fitting the continuum
-        cont_fit_func, lambda_cont, flux_cont = fit_continuum(
-            wavelength, flux, cont_mask,
-            config_parameters["continuum"]["poly_order_cont"])
+            #excluded_region = config_parameters["continuum"].get("excluded_region")
+            #fit_region = np.array(config_parameters["line"]["fit_region"])
 
-        # --- Line mask
-        line_mask, line_left, line_right = get_region_mask(
-            wavelength, center=line_obs,
-            window=config_parameters["line"]["window_line"],
-            region=config_parameters["line"]["fit_region"])
+            excluded_regions = []
+            excl = config_parameters["continuum"].get("excluded_region")
+            if excl is not None:
+                excluded_regions.extend(excl)
+            
+            # Line fit region must also be excluded from continuum
+            fit_region = config_parameters["line"].get("fit_region")
+            if fit_region is not None:
+                excluded_regions.append(fit_region)
 
-        line_flux, lambda_line_sel, flux_line_sel = compute_line_flux(
-            wavelength, flux, line_mask, cont_fit_func,)
+            if excluded_regions is not None:
+                cont_mask = apply_excluded_regions(cont_mask, wavelength, excluded_regions)
 
-        results.append((row["x"], row["y"], line_flux))
+            # Fitting the continuum
+            cont_fit_func, lambda_cont, flux_cont = fit_continuum(
+                wavelength, flux, cont_mask,
+                config_parameters["continuum"]["poly_order_cont"])
 
-        plot_inputs.append(
-            dict(
-                wavelength=wavelength,
-                flux=row["spec"],
-                lambda_line_sel=lambda_line_sel,
-                flux_line_sel=flux_line_sel,
-                lambda_cont=lambda_cont,
-                flux_cont=flux_cont,
-                cont_fit_func=cont_fit_func,
-                line_left=line_left,
-                line_right=line_right,
-                line_obs=line_obs,
-                excluded_region=config_parameters["continuum"]["excluded_region"],
-                zoom_limits=config_parameters["plotting"]["zoom_plot"],
-                poly_order_cont=config_parameters["continuum"]["poly_order_cont"],
-                coords=(row["x"], row["y"]),
-                y_pad=config_parameters["plotting"]["y_padding"],
+            # --- Line mask
+            line_mask, line_left, line_right = get_region_mask(
+                wavelength, center=line_obs,
+                window=config_parameters["line"]["window_line"],
+                region=config_parameters["line"]["fit_region"])
+
+            line_flux_trapz, lambda_line_sel, flux_line_sel_without_cont = compute_line_flux(
+                wavelength, flux, line_mask, cont_fit_func,)
+
+            results.append((x_fits, y_fits, line_flux_trapz))
+
+            plot_inputs.append(
+                dict(
+                    wavelength=wavelength,
+                    flux=flux,
+                    lambda_line_sel=lambda_line_sel,
+                    flux_line_sel=flux[line_mask],   #flux_line_sel_without_cont,
+                    lambda_cont=lambda_cont,
+                    flux_cont=flux_cont,
+                    cont_fit_func=cont_fit_func,
+                    line_left=line_left,
+                    line_right=line_right,
+                    line_obs=line_obs,
+                    excluded_region=config_parameters["continuum"]["excluded_region"],
+                    zoom_limits=config_parameters["plotting"]["zoom_plot"],
+                    poly_order_cont=config_parameters["continuum"]["poly_order_cont"],
+                    coords=coords,
+                    y_pad=config_parameters["plotting"]["y_padding"],
+                )
             )
-        )
 
-    table_results = Table(rows=results,names=("x", "y", "line_flux"))
-    save_table(table_results, table_parameters_path)
+    # Convert list of tuples → columns
+    results = np.array(results)
+
+    x_fits = results[:, 0].astype(int)
+    y_fits = results[:, 1].astype(int)
+    line_flux_trapz = results[:, 2].astype(float)
+
+    table_results_fitting = Table(
+        [x_fits, y_fits, line_flux_trapz],
+        names=("x", "y", "line_flux_trapz")
+    )
+    table_results_fitting.meta["LINE"] = "Halpha"
+    #table_results_fitting.meta["LINE_CEN"] = line_obs. #Attribute `LINE_CEN` of type <class 'numpy.ndarray'> cannot be added to FITS Header
+    #table_results_fitting.meta["FLUX_UNIT"] = "erg/s/cm2/AA" #VerifyWarning: Keyword name 'FLUX_UNIT' is greater than 8 characters or contains characters not allowed by the FITS standard;
+    table_results_fitting.meta["COMMENT"] = "Integrated line flux after continuum subtraction"
+    #table_results = Table(rows=results,names=("x", "y", "line_flux_trapz"))
+    save_table(table_results_fitting, table_parameters_path)
 
     if config_parameters["plotting"]["save_pdf"]:
         pdf_path = output_dir_path / config_parameters["plotting"]["pdf_name"]
@@ -107,6 +143,6 @@ def main_line_fitting(output_dir_path, spectra_table, wavelength,
             *config_parameters["plotting"]["plots_per_page"],
         )
 
-    return table_results
+    return table_results_fitting
         
         
