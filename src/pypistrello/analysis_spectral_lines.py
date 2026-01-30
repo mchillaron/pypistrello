@@ -21,13 +21,13 @@ from .file_loading.load_fits_cube import read_fits_cube
 from .file_loading.load_wavelength_range import load_wavelength_range
 from .file_loading.load_yaml_file import load_yaml_file
 from .file_loading.get_wavelength_axis import get_wavelength_axis
+from .file_loading.save_table_fits import save_table_with_wcs
 
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
 
 from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra
 from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
-from .line_fitting.main_line_fitting import save_table
 from .line_fitting.map_plots import make_a_map
 
 RED     = "\033[91m"
@@ -78,7 +78,7 @@ def analysis_spectral_lines(fits_path,
 
     # load the FITS datacube and information from headers
     print(f"{BLUE}{BOLD} Reading header and data from FITS cube{RESET}")
-    primary_header, data_header, cube_data = read_fits_cube(fits_path, data_extension)
+    primary_header, data_header, cube_data, wcs = read_fits_cube(fits_path, data_extension)
     print("Cube headers and data read successfully")
 
     if map_plotting:
@@ -122,14 +122,19 @@ def analysis_spectral_lines(fits_path,
         print(f"{BLUE}{BOLD} Calculating velocities for line {line_restframe} A{RESET}")
         velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
 
-        table_results_fitting = main_line_fitting(output_dir_path, cube_data, 
+        table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs,
                                         wavelength_range, config_parameters,
                                         table_parameters_path, redshift, line_restframe)
         
         # add velocity to table_results_fitting
         table_results_fitting["velocity"] = velocity * u.km / u.s
         print(table_results_fitting)  
-        save_table(table_results_fitting, table_parameters_path)
+        #save_table(table_results_fitting, table_parameters_path)
+        save_table_with_wcs(
+            table_results_fitting,
+            table_parameters_path,
+            wcs=wcs
+        )
     
     
 

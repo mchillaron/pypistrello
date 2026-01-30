@@ -7,6 +7,7 @@
 # License-Filename: LICENSE
 #
 
+
 from astropy.table import Table
 from matplotlib.backends.backend_pdf import PdfPages
 from tqdm import tqdm
@@ -15,17 +16,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ..file_loading.load_yaml_file import validate_region_config
+from ..file_loading.save_table_fits import save_table_with_wcs
 from .window_regions import get_region_mask, apply_excluded_regions
 from .continuum import fit_continuum
 from .trapz import compute_line_flux
 from .plotting import plot_trapz_spectrum
 from .save_trapz_plots_pdf import save_trapz_plots_to_pdf
 
-
-def save_table(table, filename):
-    table.write(filename, overwrite=True)
-
-def main_line_fitting(output_dir_path, cube_data, 
+def main_line_fitting(output_dir_path, cube_data, wcs,
                       wavelength, config_parameters, 
                       table_parameters_path, redshift, line_restframe):
     
@@ -131,8 +129,17 @@ def main_line_fitting(output_dir_path, cube_data,
     #table_results_fitting.meta["LINE_CEN"] = line_obs. #Attribute `LINE_CEN` of type <class 'numpy.ndarray'> cannot be added to FITS Header
     #table_results_fitting.meta["FLUX_UNIT"] = "erg/s/cm2/AA" #VerifyWarning: Keyword name 'FLUX_UNIT' is greater than 8 characters or contains characters not allowed by the FITS standard;
     table_results_fitting.meta["COMMENT"] = "Integrated line flux after continuum subtraction"
+    table_results_fitting.meta["X_AXIS"] = "pixel axis 1"
+    table_results_fitting.meta["Y_AXIS"] = "pixel axis 2"
+
     #table_results = Table(rows=results,names=("x", "y", "line_flux_trapz"))
-    save_table(table_results_fitting, table_parameters_path)
+
+    #save_table(table_results_fitting, table_parameters_path)
+    save_table_with_wcs(
+        table_results_fitting,
+        table_parameters_path,
+        wcs=wcs
+    )
 
     if config_parameters["plotting"]["save_pdf"]:
         pdf_path = output_dir_path / config_parameters["plotting"]["pdf_name"]
