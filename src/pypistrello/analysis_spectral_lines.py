@@ -7,7 +7,6 @@
 # License-Filename: LICENSE
 #
 
-from astropy.table import Column
 from pathlib import Path
 
 import argparse
@@ -28,7 +27,6 @@ from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
 from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra
 from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
-from .line_fitting.map_plots import make_a_map
 
 RED     = "\033[91m"
 GREEN   = "\033[92m"
@@ -47,8 +45,7 @@ def analysis_spectral_lines(fits_path,
                             table_parameters_path,
                             redshift, 
                             line_restframe, 
-                            diagnostic_spectra,
-                            map_plotting):
+                            diagnostic_spectra):
     """Main function to analyze spectral lines from a FITS file and save results to an output directory.
     
     Parameters
@@ -81,60 +78,45 @@ def analysis_spectral_lines(fits_path,
     primary_header, data_header, cube_data, wcs = read_fits_cube(fits_path, data_extension)
     print("Cube headers and data read successfully")
 
-    if map_plotting:
-        print(f"{MAGENTA}{BOLD} Plotting maps{RESET}")
-        # import FITS table from table_parameters_path
-        table_results = load_fits_table(table_parameters_path)
-        print(table_results)
-
-        # jump directly into the map-plotting tool
-        #vmin, vmax = np.nanpercentile(flux_map, [5, 95])
-        flux_map = make_a_map(table_results, cube_data, vmin=-2e-18, vmax=6e-15, title="Hα integrated line flux")
-        velocity_map = make_a_map(table_results, cube_data, flux_col="velocity",
-                                  vmin=-100, vmax=100, 
-                                  cmap="seismic", 
-                                  title="Hα velocity (km/s)")
+    # load the wavelength range from wavelength_path
+    print(f"{BLUE}{BOLD} Reading wavelength range{RESET}")
+    if wavelength_path is not None:
+        wavelength_range = load_wavelength_range(wavelength_path)
+        print(f"{GREEN}INFO:{RESET} Wavelength range loaded from {wavelength_path}.")
     else:
+        wavelength_range = get_wavelength_axis(data_header, primary_header)
+        print(f"{GREEN}INFO:{RESET} Wavelength range calculated")
+        print(wavelength_range)
 
-        # load the wavelength range from wavelength_path
-        print(f"{BLUE}{BOLD} Reading wavelength range{RESET}")
-        if wavelength_path is not None:
-            wavelength_range = load_wavelength_range(wavelength_path)
-            print(f"{GREEN}INFO:{RESET} Wavelength range loaded from {wavelength_path}.")
-        else:
-            wavelength_range = get_wavelength_axis(data_header, primary_header)
-            print(f"{GREEN}INFO:{RESET} Wavelength range calculated")
-            print(wavelength_range)
+    # Diagnostic plot to prepare analysis
+    print(f"{BLUE}{BOLD} Generating diagnostic plot{RESET}")
+    if diagnostic_spectra is not None:
+        plot_diagnostic_spectra(cube_data, wavelength_range, diagnostic_spectra, output_dir_path, redshift, line_restframe)
+    
+    # After the diagnostic plot, we already have all the parameters to fill in the YAML file.
+    print(f"{BLUE}{BOLD} Reading parameters from YAML file{RESET}")
+    config_parameters = load_yaml_file(config_path)
+    print("YAML file read successfully")
 
-        # Diagnostic plot to prepare analysis
-        print(f"{BLUE}{BOLD} Generating diagnostic plot{RESET}")
-        if diagnostic_spectra is not None:
-            plot_diagnostic_spectra(cube_data, wavelength_range, diagnostic_spectra, output_dir_path, redshift, line_restframe)
-        
-        # After the diagnostic plot, we already have all the parameters to fill in the YAML file.
-        print(f"{BLUE}{BOLD} Reading parameters from YAML file{RESET}")
-        config_parameters = load_yaml_file(config_path)
-        print("YAML file read successfully")
+    print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum{RESET}")
+    offsets_pixel_array, fpeak_croscorr_array = crosscorrelate_spectra(cube_data, wavelength_range, config_parameters)
 
-        print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum{RESET}")
-        offsets_pixel_array, fpeak_croscorr_array = crosscorrelate_spectra(cube_data, wavelength_range, config_parameters)
+    print(f"{BLUE}{BOLD} Calculating velocities for line {line_restframe} A{RESET}")
+    velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
 
-        print(f"{BLUE}{BOLD} Calculating velocities for line {line_restframe} A{RESET}")
-        velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
-
-        table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs,
-                                        wavelength_range, config_parameters,
-                                        table_parameters_path, redshift, line_restframe)
-        
-        # add velocity to table_results_fitting
-        table_results_fitting["velocity"] = velocity * u.km / u.s
-        print(table_results_fitting)  
-        #save_table(table_results_fitting, table_parameters_path)
-        save_table_with_wcs(
-            table_results_fitting,
-            table_parameters_path,
-            wcs=wcs
-        )
+    table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs,
+                                    wavelength_range, config_parameters,
+                                    table_parameters_path, redshift, line_restframe)
+    
+    # add velocity to table_results_fitting
+    table_results_fitting["velocity"] = velocity * u.km / u.s
+    print(table_results_fitting)  
+    #save_table(table_results_fitting, table_parameters_path)
+    save_table_with_wcs(
+        table_results_fitting,
+        table_parameters_path,
+        wcs=wcs
+    )
     
     
 
@@ -150,7 +132,7 @@ def main():
     parser.add_argument('-d', '--diagnostic-spectra', type=int, nargs=4, metavar=("x1", "x2", "y1", "y2"), help="Coordinates of spectra to integrate for diagnostic plot: x1 x2 y1 y2. FITS indices.")
     parser.add_argument('-z', '--redshift', type=float, required=True, default=0.0, help='Redshift value to adjust spectral lines (default: 0.0)')
     parser.add_argument('-lrf', '--line-restframe', type=float, nargs='+', required=True, help='Rest-frame wavelength of spectral line to analyze')
-    parser.add_argument('-map', '--plotting_maps', type=bool, default=False, help='If True, only map-plotting tool works from FITS table already saved.')
+    #parser.add_argument('-map', '--plotting_maps', type=bool, default=False, help='If True, only map-plotting tool works from FITS table already saved.')
     args = parser.parse_args()
 
     fits_filename = args.input_file
@@ -162,7 +144,7 @@ def main():
     diagnostic_spectra = args.diagnostic_spectra
     redshift = args.redshift
     line_restframe = args.line_restframe
-    map_plotting = args.plotting_maps
+    #map_plotting = args.plotting_maps
     
     print("\n")
     print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")
@@ -271,7 +253,7 @@ def main():
 
     analysis_spectral_lines(fits_path, data_extension, output_dir_path, 
                             wavelength_path, config_path, table_parameters_path,
-                            redshift, line_restframe, diagnostic_spectra, map_plotting)
+                            redshift, line_restframe, diagnostic_spectra)
 
 
 if __name__ == "__main__":
