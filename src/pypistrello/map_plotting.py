@@ -18,23 +18,44 @@ import teareduce as tea
 
 from .file_loading.load_yaml_file import load_yaml_file
 from .file_loading.load_fits_table import load_fits_table
-from .line_fitting.map_plots import build_2d_map
-from .line_fitting.map_plots import save_contours
-from .line_fitting.map_plots import load_contours
+from .map_visualization.make_a_map import make_a_map
 
-RED     = "\033[91m"
 GREEN   = "\033[92m"
-YELLOW  = "\033[93m"
 BLUE    = "\033[94m"
 MAGENTA = "\033[95m"
-CYAN    = "\033[96m"
 BOLD = "\033[1m"
 RESET   = "\033[0m"
 
 def map_plotting(working_dir, fits_path, config_path, output_dir_path, map_choice):
-    """Plotting maps from spectral line analysis results
+    """
+    Generate and plot maps from spectral line analysis results.
+
+    This function:
+    1. Loads plotting and analysis parameters from a YAML configuration file.
+    2. Reads a FITS table containing analysis results and its associated WCS.
+    3. Calls the main plotting routine to generate the requested map.
+
     Parameters
     ----------
+    working_dir : str
+        Path to the working directory where intermediate files
+        (e.g., contour files) will be saved.
+    fits_path : str
+        Path to the FITS file containing the analysis results table.
+    config_path : str
+        Path to the YAML configuration file with plotting parameters.
+    output_dir_path : str
+        Directory where the final map products will be stored.
+    map_choice : str
+        Identifier of the map to be generated (e.g., flux, velocity,
+        dispersion). This value is used to select parameters and to
+        name output files.
+
+    Returns
+    -------
+    None
+        This function does not return any value. It produces plots
+        and saves output files to disk.
     """
     
     # Extract parameters from YAML configuration file:
@@ -42,104 +63,12 @@ def map_plotting(working_dir, fits_path, config_path, output_dir_path, map_choic
     config_parameters = load_yaml_file(config_path)
     print("YAML file read successfully")
 
-    # Prepare the parameters in the YAML in the correct format to be used
-    if map_choice == "flux":
-        yaml_key = "flux_map"
-    elif map_choice == "vel":
-        yaml_key = "velocity_map"
-    else:
-        raise ValueError("map_choice must be 'flux' or 'vel'")
-    
-    params = config_parameters[yaml_key]
-    interpolate = params.get("interpolate", True)
-    interp_method = params.get("interpolation_method", "nearest")
-    
-    # read the table
+    # Read the table with results from analysis
     table, wcs = load_fits_table(fits_path)
 
-    x = table["x"]
-    y = table["y"]
-    data = table[params["data_column"]]
-    
-    # Build a 2D map
-    #xi, yi, zi = build_2d_map(x, y, data)
-    zi = build_2d_map(
-        x,
-        y,
-        data,
-        interpolate=interpolate,
-        method=interp_method
-    )
-
-    #Plot setup
-    fig = plt.figure(figsize=(7, 6))
-
-    if params.get("wcs_activate", False) and wcs is not None:
-        ax = plt.subplot(projection=wcs)
-        ax.set_xlabel("RA")
-        ax.set_ylabel("DEC")
-    else:
-        ax = plt.subplot()
-        ax.set_xlabel("X [pix]")
-        ax.set_ylabel("Y [pix]")
-
-    vmin = params.get("vmin")
-    vmax = params.get("vmax")
-
-    if vmin is None and vmax is None:
-        finite_zi = zi[np.isfinite(zi)]
-        if finite_zi.size == 0:
-            raise ValueError("No finite data available for zscale")
-        vmin, vmax = tea.zscale(image=finite_zi, factor=0.05)
-        #vmin, vmax = tea.zscale(image=zi, factor=0.05)
-        print(f"Auto zscale applied: vmin={vmin:.3e}, vmax={vmax:.3e}")
-
-    im = ax.imshow(
-        zi,
-        origin="lower",
-        cmap=params.get("cmap", "viridis"),
-        vmin=vmin,
-        vmax=vmax
-    )
-
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label(params.get("colorbar_label", ""))
-    
-    # contours
-    if params.get("calculate_contours", False):
-        zi_contours = build_2d_map(
-            x, y, data,
-            interpolate=True,
-            method="linear"
-        )
-
-        levels = params.get("contour_levels", 10)
-
-        contour_set = ax.contour(
-            zi_contours,
-            levels=levels,
-            colors="white",
-            linewidths=1
-        )
-
-        contour_file = os.path.join(
-            working_dir, f"{map_choice}_contours.npz"
-        )
-
-        save_contours(
-            contour_file,
-            {f"level_{i}": c for i, c in enumerate(contour_set.allsegs)}
-        )
-    
-    # Save figure
-    os.makedirs(output_dir_path, exist_ok=True)
-    output_path = os.path.join(
-        output_dir_path, f"{map_choice}_map.pdf"
-    )
-    plt.savefig(output_path, dpi=200, bbox_inches="tight")
-    plt.close()
-
-    print(f"Map saved in {output_path}")
+    # Plotting function
+    make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_choice)
+    print("INFO: Map created!")
 
 
 def main():

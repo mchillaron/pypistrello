@@ -33,5 +33,8 @@ def load_fits_table(fits_path):
         header = hdul[0].header
 
     wcs = WCS(header) if header else None
+    if wcs is not None:
+        print("INFO: WCS information found in header. You can activate wcs projection.")
+        print(wcs)
 
     return table, wcs
