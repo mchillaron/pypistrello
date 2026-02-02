@@ -218,7 +218,7 @@ def main():
     if not isinstance(redshift, float):
         raise ValueError(f"Redshift value '{redshift}' is not a float. Please provide a valid float value.")
     if redshift < 0.0:
-        raise ValueError(f"Redshift value '{redshift}' is negative. Please provide a non-negative float value.")
+        print(f"Redshift value '{redshift}' is negative.")
     if redshift == 0.0:
         print(f"{GREEN}INFO:{RESET} Redshift value is 0.0, no adjustment will be made to spectral lines.")
     print(f"Redshift value: {redshift}")
