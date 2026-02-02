@@ -23,7 +23,7 @@ plotting:
 
   plots_per_page: [4, 2]          # rows, cols
   show_preview: False
-  save_pdf: True                              
+  save_pdf: False                              
   pdf_name: "plots_trapz_spectrum.pdf"
 
 # Line-fitting settings
@@ -58,7 +58,7 @@ flux_map:
   vmin:                                       # Minimum value for color scaling (leave empty for automatic zscale)
   vmax:                                       # Maximum value for color scaling (leave empty for automatic zscale)
   zscale_factor: 0.05                         # Fraction of the data range used for contrast scaling (default 0.05) (e.g., for percentile- or zscale-based normalization)
-  wcs_activate: False                         # If True, use WCS information for axis projection
+  wcs_activate: True                         # If True, use WCS information for axis projection
   calculate_contours: True                    # If True, compute and overlay contours on this map
   contour_levels: 7                           # Number of contour levels to compute (default 7)
   interpolate: False                          # If True, interpolate scattered data to fill missing pixels
@@ -70,14 +70,14 @@ velocity_map:
   data_column: "velocity"           
   colorbar_label: "Velocity [km/s]" 
   cmap: "seismic"                   
-  vmin: -75 #-100
-  vmax: 0 #100
+  vmin: -100
+  vmax: 100
   zscale_factor: 0.05
-  wcs_activate: False
+  wcs_activate: True
   add_flux_contours: True
   flux_contour_file: flux_contours.npy
   contours_color: "black"
   interpolate: False                
-  interpolation_method: "nearest"   # nearest, linear, cubic
+  interpolation_method: "nearest"   
   background: "transparent"         
   visualize: True                   
