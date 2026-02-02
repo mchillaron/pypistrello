@@ -16,14 +16,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from ..file_loading.load_yaml_file import validate_region_config
-from ..file_loading.save_table_fits import save_table_with_wcs
+from ..file_loading.save_table_fits import save_table_with_wcs_extension
 from .window_regions import get_region_mask, apply_excluded_regions
 from .continuum import fit_continuum
 from .trapz import compute_line_flux
 from .plotting import plot_trapz_spectrum
 from .save_trapz_plots_pdf import save_trapz_plots_to_pdf
 
-def main_line_fitting(output_dir_path, cube_data, wcs,
+def main_line_fitting(output_dir_path, cube_data, wcs_info,
                       wavelength, config_parameters, 
                       table_parameters_path, redshift, line_restframe):
     
@@ -61,9 +61,6 @@ def main_line_fitting(output_dir_path, cube_data, wcs,
                 center=line_obs,
                 window=config_parameters["continuum"]["window_cont"],
                 region=np.array(config_parameters["continuum"]["continuum_region"]))
-
-            #excluded_region = config_parameters["continuum"].get("excluded_region")
-            #fit_region = np.array(config_parameters["line"]["fit_region"])
 
             excluded_regions = []
             excl = config_parameters["continuum"].get("excluded_region")
@@ -135,10 +132,10 @@ def main_line_fitting(output_dir_path, cube_data, wcs,
     #table_results = Table(rows=results,names=("x", "y", "line_flux_trapz"))
 
     #save_table(table_results_fitting, table_parameters_path)
-    save_table_with_wcs(
+    save_table_with_wcs_extension(
         table_results_fitting,
         table_parameters_path,
-        wcs=wcs
+        wcs_info=wcs_info
     )
 
     if config_parameters["plotting"]["save_pdf"]:

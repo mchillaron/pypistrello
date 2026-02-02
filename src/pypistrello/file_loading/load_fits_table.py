@@ -14,27 +14,30 @@ from astropy.table import Table
 from astropy.wcs import WCS
 
 def load_fits_table(fits_path):
-    """Load an Astropy Table from a FITS file.
-
-    Parameters
-    ----------
-    fits_path : Path
-        Path to the FITS file.
-
-    Returns
-    -------
-    Table
-        Astropy Table loaded from the FITS file.
+    """
+    Load an Astropy Table and associated WCS (if present) from a FITS file.
     """
 
-    #table = Table.read(fits_path, format='fits')
-    with fits.open(fits_path) as hdul:
-        table = Table(hdul[1].data)
-        header = hdul[0].header
+    wcs = None
 
-    wcs = WCS(header) if header else None
-    if wcs is not None:
-        print("INFO: WCS information found in header. You can activate wcs projection.")
-        print(wcs)
+    with fits.open(fits_path) as hdul:
+
+        # --- Load table
+        if "RESULTS" in hdul:
+            table = Table(hdul["RESULTS"].data)
+        else:
+            table = Table(hdul[1].data)
+
+        # --- Load WCS from extension
+        if "WCS_MAP" in hdul:
+            wcs_header = hdul["WCS_MAP"].header
+            wcs_try = WCS(wcs_header)
+
+            if wcs_try.has_celestial:
+                wcs = wcs_try.celestial
+                print("INFO: Celestial WCS loaded from WCS_MAP")
+                print(wcs)
+            else:
+                print("WARNING: WCS_MAP present but has no celestial axes")
 
     return table, wcs

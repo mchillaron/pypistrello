@@ -11,16 +11,14 @@ from pathlib import Path
 
 import argparse
 import astropy.units as u
-import numpy as np
 import os
 import re
 
-from .file_loading.load_fits_table import load_fits_table
 from .file_loading.load_fits_cube import read_fits_cube
 from .file_loading.load_wavelength_range import load_wavelength_range
 from .file_loading.load_yaml_file import load_yaml_file
 from .file_loading.get_wavelength_axis import get_wavelength_axis
-from .file_loading.save_table_fits import save_table_with_wcs
+from .file_loading.save_table_fits import save_table_with_wcs_extension
 
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
 
@@ -75,7 +73,7 @@ def analysis_spectral_lines(fits_path,
 
     # load the FITS datacube and information from headers
     print(f"{BLUE}{BOLD} Reading header and data from FITS cube{RESET}")
-    primary_header, data_header, cube_data, wcs = read_fits_cube(fits_path, data_extension)
+    primary_header, data_header, cube_data, wcs_info = read_fits_cube(fits_path, data_extension)
     print("Cube headers and data read successfully")
 
     # load the wavelength range from wavelength_path
@@ -104,18 +102,18 @@ def analysis_spectral_lines(fits_path,
     print(f"{BLUE}{BOLD} Calculating velocities for line {line_restframe} A{RESET}")
     velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
 
-    table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs,
+    table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs_info,
                                     wavelength_range, config_parameters,
                                     table_parameters_path, redshift, line_restframe)
     
     # add velocity to table_results_fitting
     table_results_fitting["velocity"] = velocity * u.km / u.s
     print(table_results_fitting)  
-    #save_table(table_results_fitting, table_parameters_path)
-    save_table_with_wcs(
+    
+    save_table_with_wcs_extension(
         table_results_fitting,
         table_parameters_path,
-        wcs=wcs
+        wcs_info=wcs_info
     )
     
     
@@ -132,7 +130,6 @@ def main():
     parser.add_argument('-d', '--diagnostic-spectra', type=int, nargs=4, metavar=("x1", "x2", "y1", "y2"), help="Coordinates of spectra to integrate for diagnostic plot: x1 x2 y1 y2. FITS indices.")
     parser.add_argument('-z', '--redshift', type=float, required=True, default=0.0, help='Redshift value to adjust spectral lines (default: 0.0)')
     parser.add_argument('-lrf', '--line-restframe', type=float, nargs='+', required=True, help='Rest-frame wavelength of spectral line to analyze')
-    #parser.add_argument('-map', '--plotting_maps', type=bool, default=False, help='If True, only map-plotting tool works from FITS table already saved.')
     args = parser.parse_args()
 
     fits_filename = args.input_file
@@ -144,7 +141,6 @@ def main():
     diagnostic_spectra = args.diagnostic_spectra
     redshift = args.redshift
     line_restframe = args.line_restframe
-    #map_plotting = args.plotting_maps
     
     print("\n")
     print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")

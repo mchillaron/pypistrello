@@ -11,25 +11,6 @@ from astropy.io import fits
 from astropy.wcs import WCS
 
 def read_fits_cube(fits_path, ext):
-    """
-    Reads a FITS cube and returns the Primary header and the data
-    from the first extension.
-
-    Parameters
-    ----------
-    fits_path : str
-        Path to the FITS file.
-    ext : int
-        Extension number in the FITS cube where data is found.
-
-    Returns
-    -------
-    primary_header : fits.Header or None
-    data_header : fits.Header
-    data : numpy.ndarray
-    wcs : astropy.wcs.WCS or None
-    """
-
     with fits.open(fits_path) as hdul:
         primary_header = hdul[0].header if len(hdul) > 0 else None
 
@@ -38,63 +19,47 @@ def read_fits_cube(fits_path, ext):
             data = hdul[ext].data
         except IndexError:
             raise IndexError(f"Extension {ext} does not exist. File contains {len(hdul)} HDUs.")
+        
+        wcs_info = {
+            "wcs": None,
+            #"header": None,
+            "naxis": None,
+            "ra_cent": None,
+            "dec_cent": None
+        }
 
-        wcs = None
-        if primary_header is not None:  # 1) Try primary header
+        if primary_header is not None:
             try:
-                wcs_try = WCS(primary_header)
-                if wcs_try.has_celestial:
-                    wcs = wcs_try.celestial
-                    print(wcs)
+                w = WCS(primary_header)
+                if w.has_celestial:
+                    wcs_info["wcs"] = w.celestial
+                    #wcs_info["header"] = primary_header
+                    wcs_header = primary_header
             except Exception:
                 pass
 
-        if wcs is None: # 2) Fallback: try data header
+        if wcs_info["wcs"] is None:
             try:
-                wcs_try = WCS(data_header)
-                if wcs_try.has_celestial:
-                    wcs = wcs_try.celestial
-                    print(wcs)
+                w = WCS(data_header)
+                if w.has_celestial:
+                    wcs_info["wcs"] = w.celestial
+                    #wcs_info["header"] = data_header
+                    wcs_header = data_header
             except Exception:
                 pass
 
-    return primary_header, data_header, data, wcs
+        if wcs_info["wcs"] is not None:
+            #hdr = wcs_info["header"]
+            hdr = wcs_header
 
+            nx = hdr.get("NAXIS1")
+            ny = hdr.get("NAXIS2")
+            if nx is not None and ny is not None:
+                wcs_info["naxis"] = (nx, ny)
 
-def read_fits_cube_old(fits_path, ext):
-    """
-    Reads a FITS cube and returns the Primary header and the data
-    from the first extension.
+            # Apuntado central si existe
+            wcs_info["ra_cent"] = hdr.get("RA", hdr.get("CRVAL1"))
+            wcs_info["dec_cent"] = hdr.get("DEC", hdr.get("CRVAL2"))
 
-    Parameters
-    ----------
-    fits_path : str
-        Path to the FITS file.
-    ext : int
-        Extension number in the FITS cube where data is found.
-    Returns
-    -------
-    header : astropy.io.fits.Header
-        Header of the FITS file.
-    data : numpy.ndarray
-        Data array from the first extension.
-    """
-
-    with fits.open(fits_path) as hdul:
-        if ext == 0:
-            primary_header = None
-            data_header = hdul[0].header
-        else:
-            primary_header = hdul[0].header
-            wcs = WCS(primary_header)
-            try:
-                data_header = hdul[ext].header
-            except IndexError:
-                raise IndexError(
-                    f"Extension {ext} does not exist. "
-                    f"File contains {len(hdul)} HDUs."
-                )
-
-        data = hdul[ext].data
-
-    return primary_header, data_header, data, wcs
+    print(wcs_info)
+    return primary_header, data_header, data, wcs_info
