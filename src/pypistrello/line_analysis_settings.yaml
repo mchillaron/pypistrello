@@ -7,53 +7,61 @@
 # License-Filename: LICENSE
 #
 
-line_restframe: 6562.8
-line_name: "Halpha"
+line_name: "Hα"  #"$\mathrm{H}\alpha$"
+line_restframe: [6562.8]
+redshift: 0.002682
 
-# General settings for the plots and PDFs saved in the output directory.
-general:
-  manual_trapz_check: True        # If True, the calculation of trapezoids is also calculated manually (if False, only numpy.trapezoids is used).
-  trapz_nbins: 100                # Number of bins for the area calculation using trapezoids in the manual mode.
-  plot_residuals: True            # Save plots with the residuals of line-fitting.
-  plot_simulated_spectra: False   # Add simulated spectra to the plots if provided.
+# ============================================================================
+# pypistrello configuration
+# ============================================================================
 
-plotting:
-  zoom_plot: [6526.71, 6650.69]   # xmin and xmax for the fitting plots
-  y_padding: 0.10                 # fraction to adapt the y-axis depending on the y-values in the plot
+# Settings for the diagnostic plot, in which the regions to be analysed and
+# excluded are selected.
+reg_int_spec: [x1, x2, y1, y2]        # region to integrate spectra. FITS criterium
+wavelength_file: null                 # CSV with wavelength axis; if null, it will be computed from FITS headers
+zoom_plot: [xmin, xmax]               # xmin and xmax for the fitting plots
+y_padding: 0.10                       # fraction to adjust y-axis
+reg_continuum: [λleft, λright]        # wavelength range for continuum
+reg_fitting: [λleft, λright]          # wavelength range including the line
+reg_excluded:                         # wavelength range(s) to exclude from the continuum
+# - [λleft, λright]                              
+window_continuum: null                # number of pixels from the line onwards to consider cont (semi-width)
+window_fitting: null                  # number of pixels from the line onwards to fit the line (semi-width)
 
-  plots_per_page: [4, 2]          # rows, cols
-  show_preview: False
-  save_pdf: False                              
-  pdf_name: "plots_trapz_spectrum.pdf"
+#-----------------------------------------------------------------------------
+# Settings for the AREA calculation using trapezoids.
+poly_order_cont: 1              # order of the polynomial that fits the continuum
+manual_trapz_check: True        # If True, trapezoids performed manually too (if False, numpy.trapezoids).
+trapz_nbins: 100                # Number of bins for the manual mode.
 
-# Line-fitting settings
-line:
-  window_line:
-  fit_region: [6574.09, 6586.64]
-  line_model_fit: True             
- 
-# Continuum-fitting settings
-continuum:
-  window_cont:
-  continuum_region: [6530.54, 6643.57]
-  excluded_region:
-    - [6563.52, 6567.46]
-    - [6598.46, 6603.96]
-  poly_order_cont: 1
+#-----------------------------------------------------------------------------
+# Settings for offset and VELOCITY calculation.
+ref_spec: [x,y]     # (x,y) of the spectrum used as reference for crosscorr. FITS criterium
 
-# Crosscorrelation
-crosscorr:
-  reference_spectrum: [87, 97]      # (x,y) coordinates in FITS format
+#-----------------------------------------------------------------------------
+# Settings for LINE-FITTING
+line_model_fit: True            # Perform the fitting of the line
+plot_residuals: True            # Save plots of residuals 
 
-# ============================================================
-# Map-plotting configuration
+#-----------------------------------------------------------------------------
+# Settings for plotting outputs after analysis.
+plot_simulated_spectra: False   # Add simulated spectra to the plots if provided.
+save_pdf: False                 # Save a PDF with plots showing the analysis               
+pdf_name: "plots_analysis.pdf"  # PDF name
+plots_per_page: [4, 2]          # (rows, cols) for the subplot distribution per PDF page
+show_preview:                   # While running, show the plots for spectrum coord (X, Y). FITS criterium
+# - [X, Y] 
+
+# ============================================================================
+# pypistrello-plotting configuration
+# ============================================================================
 # Each map section defines how a specific 2D map is generated
 # and visualized from the analysis results.
 # ============================================================
 
 flux_map:
   data_column: "line_flux_trapz"              # Name of the column in the FITS table used to build the map
-  colorbar_label: "Flux [erg/s/cm²/A]"        # Label shown next to the colorbar (including physical units)
+  colorbar_label: "$\mathrm{Flux\ [erg\ s^{-1}\ cm^{-2}\ \AA^{-1}]}$"        # Colorbar label
   cmap: "plasma"                              # Matplotlib colormap used for the image
   vmin:                                       # Minimum value for color scaling (leave empty for automatic zscale)
   vmax:                                       # Maximum value for color scaling (leave empty for automatic zscale)
@@ -68,7 +76,7 @@ flux_map:
 
 velocity_map:
   data_column: "velocity"           
-  colorbar_label: "Velocity [km/s]" 
+  colorbar_label: "$\mathrm{Velocity\ [km/s]}$" #"Velocity [km/s]" 
   cmap: "seismic"                   
   vmin: -100
   vmax: 100
@@ -80,4 +88,4 @@ velocity_map:
   interpolate: False                
   interpolation_method: "nearest"   
   background: "transparent"         
-  visualize: True                   
+  visualize: True 
