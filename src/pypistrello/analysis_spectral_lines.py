@@ -13,12 +13,14 @@ import argparse
 import astropy.units as u
 import os
 import re
+import sys
 
 from .file_loading.load_fits_cube import read_fits_cube
 from .file_loading.load_wavelength_range import load_wavelength_range
 from .file_loading.load_yaml_file import load_yaml_file
 from .file_loading.get_wavelength_axis import get_wavelength_axis
 from .file_loading.save_table_fits import save_table_with_wcs_extension
+from .file_loading.yn_question import question_yes_no
 
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
 
@@ -26,24 +28,14 @@ from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra
 from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
 
-RED     = "\033[91m"
+
 GREEN   = "\033[92m"
-YELLOW  = "\033[93m"
 BLUE    = "\033[94m"
 MAGENTA = "\033[95m"
-CYAN    = "\033[96m"
 BOLD = "\033[1m"
 RESET   = "\033[0m"
 
-def analysis_spectral_lines(fits_path,
-                            data_extension,
-                            output_dir_path, 
-                            wavelength_path, 
-                            config_path, 
-                            table_parameters_path,
-                            redshift, 
-                            line_restframe, 
-                            diagnostic_spectra):
+def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path):
     """Main function to analyze spectral lines from a FITS file and save results to an output directory.
     
     Parameters
@@ -54,16 +46,8 @@ def analysis_spectral_lines(fits_path,
         Extension number of the FITS cube where data is found.
     output_dir_path : Path
         Path to the output directory where results will be saved.
-    wavelength_path : Path
-        Path to the file containing the wavelength range to analyze.
     config_path : Path
         Path to the configuration YAML file with parameters for analysis.
-    redshift : float
-        Redshift value to adjust spectral lines.
-    line_restframe : list of float
-        List of rest-frame wavelengths of spectral lines to analyze.
-    diagnostic_spectra : tuple of int or None
-        Coordinates of spectra to integrate for diagnostic plot (x1, x2, y1, y2) or None if no diagnostic plot is needed.
     """
     
     if data_extension == 0:
@@ -76,45 +60,65 @@ def analysis_spectral_lines(fits_path,
     primary_header, data_header, cube_data, wcs_info = read_fits_cube(fits_path, data_extension)
     print("Cube headers and data read successfully")
 
-    # load the wavelength range from wavelength_path
-    print(f"{BLUE}{BOLD} Reading wavelength range{RESET}")
-    if wavelength_path is not None:
-        wavelength_range = load_wavelength_range(wavelength_path)
-        print(f"{GREEN}INFO:{RESET} Wavelength range loaded from {wavelength_path}.")
-    else:
-        wavelength_range = get_wavelength_axis(data_header, primary_header)
-        print(f"{GREEN}INFO:{RESET} Wavelength range calculated")
-        print(wavelength_range)
-
-    # Diagnostic plot to prepare analysis
-    print(f"{BLUE}{BOLD} Generating diagnostic plot{RESET}")
-    if diagnostic_spectra is not None:
-        plot_diagnostic_spectra(cube_data, wavelength_range, diagnostic_spectra, output_dir_path, redshift, line_restframe)
-    
-    # After the diagnostic plot, we already have all the parameters to fill in the YAML file.
+    # Load de YAML file and read parameters
     print(f"{BLUE}{BOLD} Reading parameters from YAML file{RESET}")
     config_parameters = load_yaml_file(config_path)
     print("YAML file read successfully")
 
-    print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum{RESET}")
-    offsets_pixel_array, fpeak_croscorr_array = crosscorrelate_spectra(cube_data, wavelength_range, config_parameters)
+    line_name = config_parameters["line_name"]
+    print(f"Analysing {line_name} line")
 
-    print(f"{BLUE}{BOLD} Calculating velocities for line {line_restframe} A{RESET}")
-    velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
+    line_restframe = config_parameters["line_restframe"]
+    if not all(isinstance(lrf, float) for lrf in line_restframe):
+        raise ValueError(f"One or more line rest-frame wavelengths are not floats. Please provide valid float values.")
+    print(f"Line rest-frame wavelength: {line_restframe}")
 
-    table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs_info,
-                                    wavelength_range, config_parameters,
-                                    table_parameters_path, redshift, line_restframe)
+    redshift = config_parameters["redshift"]
+    if not isinstance(redshift, float):
+        raise ValueError(f"Redshift value '{redshift}' is not a float. Please provide a valid float value.")
+    print(f"Redshift value provided: {redshift}")
+
+    # load the wavelength range from wavelength_path
+    wavelength_param = config_parameters.get("wavelength_file")
+    if wavelength_param is not None:
+        wavelength_path = Path(working_dir) / wavelength_param
+        if not os.path.isfile(wavelength_path):
+            raise FileNotFoundError(f"Wavelength range file '{wavelength_path}' does not exist. Please provide a valid file path.")
+        if not re.search(r'\.csv$', wavelength_param, re.IGNORECASE):
+            raise ValueError(f"Wavelength range file '{wavelength_param}' is not a CSV file. Please provide a valid CSV file.")
+
+        wavelength_range = load_wavelength_range(wavelength_path)
+        print(f"{GREEN}INFO:{RESET} Wavelength range loaded from {wavelength_path}.")
+    else:
+        wavelength_range = get_wavelength_axis(data_header, primary_header)
+        print(f"{GREEN}INFO:{RESET} Wavelength range calculated.")
+
+    # Ask whether to run the diagnostic plot or not
+    run_diag = question_yes_no("Do you want to run the diagnostic diagram?")
+    if run_diag:
+        print("INFO: Running diagnostic diagram...")
+        plot_diagnostic_spectra(cube_data, wavelength_range, output_dir_path, config_parameters, redshift, line_restframe)
+        print("INFO: Diagnostic diagram completed.")
+        sys.exit(0)
+    else:
+        print("INFO: Skipping diagnostic diagram.")
+        print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum {RESET}")
+        offsets_pixel_array, fpeak_croscorr_array = crosscorrelate_spectra(cube_data, wavelength_range, config_parameters)
+
+        print(f"{BLUE}{BOLD} Calculating velocities for line {line_name} {RESET}")
+        velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
+
+        print(f"{BLUE}{BOLD} Integrating {line_name} line area with trapezoids {RESET}")
+        table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs_info,
+                                                  wavelength_range, config_parameters, table_path,
+                                                  redshift, line_restframe)
     
-    # add velocity to table_results_fitting
-    table_results_fitting["velocity"] = velocity * u.km / u.s
-    print(table_results_fitting)  
-    
-    save_table_with_wcs_extension(
-        table_results_fitting,
-        table_parameters_path,
-        wcs_info=wcs_info
-    )
+        # add velocity to table_results_fitting
+        table_results_fitting["velocity"] = velocity * u.km / u.s
+        print(table_results_fitting)  
+        
+        print(f"Saving velocity values to {table_path}")
+        save_table_with_wcs_extension(table_results_fitting, table_path, wcs_info=wcs_info)
     
     
 
@@ -123,24 +127,16 @@ def main():
     parser = argparse.ArgumentParser(description='Python Package for Integrating Spectral lines using Trapezoids, Error estimation and Line-features Optimization.')
     parser.add_argument('-F', '--input-file', type=str, required=True, help='FITS datacube filename to work with.')
     parser.add_argument('-ext', '--data-extension', type=int, required=True, help='FITS extension number where data is found (>= 0).')
-    parser.add_argument('-w', '--wavelength-range', type=str, help='Wavelength range to analyze, format: CSV')
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for analysis')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
-    parser.add_argument('-t', '--table-parameters', type=str, help='Name of FITS table to save the line-fit parameters. Include .fits extension.')
-    parser.add_argument('-d', '--diagnostic-spectra', type=int, nargs=4, metavar=("x1", "x2", "y1", "y2"), help="Coordinates of spectra to integrate for diagnostic plot: x1 x2 y1 y2. FITS indices.")
-    parser.add_argument('-z', '--redshift', type=float, required=True, default=0.0, help='Redshift value to adjust spectral lines (default: 0.0)')
-    parser.add_argument('-lrf', '--line-restframe', type=float, nargs='+', required=True, help='Rest-frame wavelength of spectral line to analyze')
+    parser.add_argument('-t', '--table', type=str, help='Name of FITS table where to save the line-fit parameters. Include .fits extension.')
     args = parser.parse_args()
 
     fits_filename = args.input_file
     data_extension = args.data_extension
-    wavelength_filename = args.wavelength_range
     config_filename = args.config_file
     output_dir = args.output_dir
-    table_parameters = args.table_parameters
-    diagnostic_spectra = args.diagnostic_spectra
-    redshift = args.redshift
-    line_restframe = args.line_restframe
+    table_file = args.table
     
     print("\n")
     print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")
@@ -155,7 +151,7 @@ def main():
     print(f"{GREEN}INFO:{RESET} All files will be read/written relative to the working directory.")
 
 
-    # INPUT PROTECTIONS
+    # INPUT
     # protection against non-FITS files
     if not re.search(r'\.fits?$', fits_filename, re.IGNORECASE):
         raise ValueError(f"Input file '{fits_filename}' is not a FIT/FITS file. Please provide a valid FIT/FITS file.")
@@ -170,7 +166,7 @@ def main():
     if data_extension < 0:
         raise ValueError(f"Invalid extension number of '{data_extension}': must be >= 0")
     
-    # OUTPUT PROTECTIONS
+    # OUTPUT
     # make sure the output does not contain extensions because it is a directory
     if re.search(r'\.[a-zA-Z0-9]+$', output_dir): # this means there is a file extension: a "." followed by alphanumeric characters at the end of the string
         raise ValueError(f"Output directory '{output_dir}' should not contain file extensions.")
@@ -189,7 +185,7 @@ def main():
         os.makedirs(output_dir)
         print(f"{GREEN}INFO:{RESET} Created output directory: {output_dir}")
     
-    # CONFIGURATION YAML FILE PROTECTIONS
+    # CONFIGURATION YAML FILE
     config_path = working_dir / config_filename
     print(f"Checking configuration file in {config_path}")
     if not os.path.isfile(config_filename):
@@ -199,57 +195,12 @@ def main():
     
     # TABLE PARAMETERS
     # protection against non-FITS files
-    if not re.search(r'\.fits?$', table_parameters, re.IGNORECASE):
-        raise ValueError(f"Input file '{table_parameters}' is not a FIT/FITS file. Please provide a valid FIT/FITS file.")
-    
-    table_parameters_path = output_dir_path / table_parameters
-    
-    # WAVELENGTH FILE
-    if wavelength_filename is not None:
-        wavelength_path = working_dir / wavelength_filename
-        if not os.path.isfile(wavelength_filename):
-            raise FileNotFoundError(f"Wavelength range file '{wavelength_filename}' does not exist. Please provide a valid file path.")
-        if not re.search(r'\.csv$', wavelength_filename, re.IGNORECASE):
-            raise ValueError(f"Wavelength range file '{wavelength_filename}' is not a CSV file. Please provide a valid CSV file.")
-    else:
-        wavelength_path = None
-        
-    # REDHSIFT PROTECTIONS
-    if not isinstance(redshift, float):
-        raise ValueError(f"Redshift value '{redshift}' is not a float. Please provide a valid float value.")
-    if redshift < 0.0:
-        print(f"Redshift value '{redshift}' is negative.")
-    if redshift == 0.0:
-        print(f"{GREEN}INFO:{RESET} Redshift value is 0.0, no adjustment will be made to spectral lines.")
-    print(f"Redshift value: {redshift}")
-    
-    # LINE REST-FRAME PROTECTIONS
-    if not all(isinstance(lrf, float) for lrf in line_restframe):
-        raise ValueError(f"One or more line rest-frame wavelengths are not floats. Please provide valid float values.")
-    print(f"Line rest-frame wavelengths: {line_restframe}")
+    if not re.search(r'\.fits?$', table_file, re.IGNORECASE):
+        raise ValueError(f"Input file '{table_file}' is not a FIT/FITS file. Please provide a valid FIT/FITS file.")
 
-    # DIAGNOSTIC SPECTRA PROTECTIONS
-    if diagnostic_spectra is None:
-        print(f"{GREEN}INFO:{RESET} No diagnostic spectra coordinates provided, no diagnostic plot will be generated.")
-    else:
-        x1, x2, y1, y2 = diagnostic_spectra
-        if len(diagnostic_spectra) != 4:
-            raise ValueError(f"Diagnostic spectra coordinates must contain exactly 4 integers for coordinates of spectra to be plotted: x1, x2, y1, y2.")
-        if not all(isinstance(coord, int) for coord in diagnostic_spectra):
-            raise ValueError(f"One or more diagnostic spectra coordinates are not integers. Please provide valid integer values.")
-        print(f"Diagnostic spectra coordinates: {diagnostic_spectra}")
+    table_path = output_dir_path / table_file
 
-        if x1 < 0 or x2 < 0 or y1 < 0 or y2 < 0:
-            raise ValueError(f"Diagnostic spectra coordinates must be non-negative integers.")
-        if x2 < x1 or y2 < y1:
-            raise ValueError(f"Diagnostic spectra coordinates are invalid. Ensure that x2 >= x1 and y2 >= y1.")
-        
-        print(f"{GREEN}INFO:{RESET}For the diagnostic plot, the spectra will be integrated over the provided coordinates: {x1, x2, y1, y2}")
-    
-
-    analysis_spectral_lines(fits_path, data_extension, output_dir_path, 
-                            wavelength_path, config_path, table_parameters_path,
-                            redshift, line_restframe, diagnostic_spectra)
+    analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path)
 
 
 if __name__ == "__main__":

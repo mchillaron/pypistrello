@@ -17,17 +17,15 @@ def crosscorrelate_spectra(cube_data, wavelength, config_parameters):
 
     nw, ny, nx = cube_data.shape
 
-    x_ref, y_ref = np.array(config_parameters["crosscorr"]["reference_spectrum"]) # FITS format
+    x_ref, y_ref = np.array(config_parameters["ref_spec"]) # FITS format
     x_ref -= 1 # change to python indices
     y_ref -= 1
     spectrum_ref = cube_data[:, y_ref, x_ref] # correct to make it python-index
 
-    crosscorr_region = np.array(config_parameters["continuum"]["continuum_region"])
-    print(crosscorr_region)
+    crosscorr_region = np.array(config_parameters["reg_continuum"])
+    print(f"The region in which spectra are being crosscorrelated is: {crosscorr_region} Å")
 
     lambda_min_crosscorr, lambda_max_crosscorr = crosscorr_region
-    print(lambda_min_crosscorr) # wavelength left
-    print(lambda_max_crosscorr) # wavelength right
 
     # need to change from wavelength to pixel to be able to extract from spectra
     iw_min = np.searchsorted(wavelength, lambda_min_crosscorr)
@@ -75,7 +73,7 @@ def convert_offset_velocity(offsets_pixel_array, wavelength,
     delta_lambda = offsets_pixel_array * dlambda_dp
     c_kms = 299792.458
     velocity_array = c_kms * delta_lambda / lambda_obs
-    print(velocity_array)
+    print(f"The velocity values for every offset have been calculated: {velocity_array} km/s")
 
     return velocity_array
 

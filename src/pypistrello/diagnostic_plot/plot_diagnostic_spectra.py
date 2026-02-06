@@ -30,8 +30,8 @@ from .calculate_integrated_spectrum import calculate_integrated_spectrum
 def plot_diagnostic_spectra(
     cube_data,
     wavelength_range,
-    diagnostic_spectra,
     output_dir_path,
+    config_parameters,
     redshift,
     line_restframe,
 ):
@@ -53,13 +53,29 @@ def plot_diagnostic_spectra(
     - Hover (bottom): wavelength / flux readout
     """
 
-    y_pad = 0.1
-    x1, x2, y1, y2 = diagnostic_spectra
+    # Load necessary parameters from config_parameters
+    y_pad = config_parameters["y_padding"]
+    reg_int_spec = config_parameters["reg_int_spec"]
+    if reg_int_spec is None:
+        raise ValueError("INFO: No diagnostic spectra coordinates provided, no diagnostic diagram will be generated.")
+    else:
+        x1, x2, y1, y2 = reg_int_spec
+        if len(reg_int_spec) != 4:
+            raise ValueError(f"Diagnostic spectra coordinates must contain exactly 4 integers for coordinates of spectra to be plotted: x1, x2, y1, y2.")
+        if not all(isinstance(coord, int) for coord in reg_int_spec):
+            raise ValueError(f"One or more diagnostic spectra coordinates are not integers. Please provide valid integer values.")
+        print(f"Diagnostic spectra coordinates: {reg_int_spec}")
+
+        if x1 < 0 or x2 < 0 or y1 < 0 or y2 < 0:
+            raise ValueError(f"Diagnostic spectra coordinates must be non-negative integers.")
+        if x2 < x1 or y2 < y1:
+            raise ValueError(f"Diagnostic spectra coordinates are invalid. Ensure that x2 >= x1 and y2 >= y1.")
+    
+    print(f"INFO:For the diagnostic diagram, the spectra will be integrated over the provided coordinates: {x1, x2, y1, y2}")
+
     line_restframe = np.array(line_restframe)
 
-    integrated_spectrum = calculate_integrated_spectrum(
-        cube_data, wavelength_range, diagnostic_spectra
-    )
+    integrated_spectrum = calculate_integrated_spectrum(cube_data, wavelength_range, reg_int_spec)
 
     state = {
         "mode": None,           # a / c / x
@@ -188,7 +204,7 @@ def plot_diagnostic_spectra(
         ax_bot.set_xlim(xmin, xmax)
         set_ylims(ax_bot, zoom_flux)
         plot_emission_lines(ax_bot, xmin, xmax)
-        print(f"Bottom panel zoom: xmin = {xmin:.2f}, xmax = {xmax:.2f} Å")
+        print(f"Bottom panel zoom (xmin, xmax): {xmin:.2f}, {xmax:.2f} Å")
 
         fig.canvas.draw_idle()
 

@@ -30,10 +30,10 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
     # Preparing parameters for the fitting process:
     line_obs = np.array(line_restframe) * (1+redshift)
 
-    zoom_limits = np.array(config_parameters["plotting"]["zoom_plot"])
-    y_pad = config_parameters["plotting"]["y_padding"]
+    zoom_limits = np.array(config_parameters["zoom_plot"])
+    y_pad = config_parameters["y_padding"]
     
-    poly_order_cont = config_parameters["continuum"]["poly_order_cont"]
+    poly_order_cont = config_parameters["poly_order_cont"]
     print(f"The continuum will be fitted with a polynomial of order {poly_order_cont}")
 
     validate_region_config(config_parameters)
@@ -59,16 +59,16 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
             cont_mask, cont_left, cont_right = get_region_mask(
                 wavelength,
                 center=line_obs,
-                window=config_parameters["continuum"]["window_cont"],
-                region=np.array(config_parameters["continuum"]["continuum_region"]))
+                window=config_parameters["window_continuum"],
+                region=np.array(config_parameters["reg_continuum"]))
 
             excluded_regions = []
-            excl = config_parameters["continuum"].get("excluded_region")
+            excl = config_parameters["reg_excluded"]
             if excl is not None:
                 excluded_regions.extend(excl)
             
             # Line fit region must also be excluded from continuum
-            fit_region = config_parameters["line"].get("fit_region")
+            fit_region = config_parameters["reg_fitting"]
             if fit_region is not None:
                 excluded_regions.append(fit_region)
 
@@ -78,13 +78,13 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
             # Fitting the continuum
             cont_fit_func, lambda_cont, flux_cont = fit_continuum(
                 wavelength, flux, cont_mask,
-                config_parameters["continuum"]["poly_order_cont"])
+                config_parameters["poly_order_cont"])
 
             # --- Line mask
             line_mask, line_left, line_right = get_region_mask(
                 wavelength, center=line_obs,
-                window=config_parameters["line"]["window_line"],
-                region=config_parameters["line"]["fit_region"])
+                window=config_parameters["window_fitting"],
+                region=config_parameters["reg_fitting"])
 
             line_flux_trapz, lambda_line_sel, flux_line_sel_without_cont = compute_line_flux(
                 wavelength, flux, line_mask, cont_fit_func,)
@@ -103,11 +103,11 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
                     line_left=line_left,
                     line_right=line_right,
                     line_obs=line_obs,
-                    excluded_region=config_parameters["continuum"]["excluded_region"],
-                    zoom_limits=config_parameters["plotting"]["zoom_plot"],
-                    poly_order_cont=config_parameters["continuum"]["poly_order_cont"],
+                    excluded_region=config_parameters["reg_excluded"],
+                    zoom_limits=config_parameters["zoom_plot"],
+                    poly_order_cont=config_parameters["poly_order_cont"],
                     coords=coords,
-                    y_pad=config_parameters["plotting"]["y_padding"],
+                    y_pad=config_parameters["y_padding"],
                 )
             )
 
@@ -122,7 +122,7 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
         [x_fits, y_fits, line_flux_trapz],
         names=("x", "y", "line_flux_trapz")
     )
-    table_results_fitting.meta["LINE"] = "Halpha"
+    table_results_fitting.meta["LINE"] = config_parameters["line_name"]
     #table_results_fitting.meta["LINE_CEN"] = line_obs. #Attribute `LINE_CEN` of type <class 'numpy.ndarray'> cannot be added to FITS Header
     #table_results_fitting.meta["FLUX_UNIT"] = "erg/s/cm2/AA" #VerifyWarning: Keyword name 'FLUX_UNIT' is greater than 8 characters or contains characters not allowed by the FITS standard;
     table_results_fitting.meta["COMMENT"] = "Integrated line flux after continuum subtraction"
@@ -138,13 +138,13 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
         wcs_info=wcs_info
     )
 
-    if config_parameters["plotting"]["save_pdf"]:
-        pdf_path = output_dir_path / config_parameters["plotting"]["pdf_name"]
+    if config_parameters["save_pdf"]:
+        pdf_path = output_dir_path / config_parameters["pdf_name"]
         save_trapz_plots_to_pdf(
             total_spectra,
             plot_inputs,
             pdf_path,
-            *config_parameters["plotting"]["plots_per_page"],
+            *config_parameters["plots_per_page"],
         )
 
     return table_results_fitting

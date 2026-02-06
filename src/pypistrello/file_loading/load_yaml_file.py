@@ -30,15 +30,15 @@ def validate_region_config(config):
     """
 
     # Line region
-    if config["line"].get("window_line") is not None and config["line"].get("fit_region") is not None:
+    if config["window_fitting"] is not None and config["reg_fitting"] is not None:
         raise ValueError("Both window_line and fit_region are defined. Choose only one.")
 
-    if config["line"].get("window_line") is None and config["line"].get("fit_region") is None:
+    if config["window_fitting"] is None and config["reg_fitting"] is None:
         raise ValueError("Neither window_line nor fit_region is defined.")
 
     # Continuum region
-    if config["continuum"].get("window_cont") is not None and config["continuum"].get("continuum_region") is not None:
+    if config["window_continuum"] is not None and config["reg_continuum"] is not None:
         raise ValueError("Both window_cont and continuum_region are defined. Choose only one.")
 
-    if config["continuum"].get("window_cont") is None and config["continuum"].get("continuum_region") is None:
+    if config["window_continuum"] is None and config["reg_continuum"] is None:
         raise ValueError("Neither window_cont nor continuum_region is defined.")
