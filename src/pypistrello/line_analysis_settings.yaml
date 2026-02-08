@@ -33,7 +33,7 @@ window_fitting: null                  # number of pixels from the line onwards t
 poly_order_cont: 1              # order of the polynomial that fits the continuum
 manual_trapz_check: True        # If True, trapezoids performed manually too (if False, numpy.trapezoids).
 trapz_nbins: 100                # Number of bins for the manual mode.
-
+snr_limit: 5 # voronoi_tessellation and also for the SNR maps
 #-----------------------------------------------------------------------------
 # Settings for offset and VELOCITY calculation.
 ref_spec: [x,y]                 # (x,y) of the spectrum used as reference for crosscorr. FITS criterium
@@ -74,6 +74,24 @@ flux_map:
   interpolation_method: "nearest"             # Interpolation method used when interpolate is True. Options: nearest, linear, cubic
   background: "transparent"                   # Background type of the output image (e.g., transparent or white)
   visualize: True                             # If True, generate and display this map
+
+snr_map:
+  data_column: "line_snr"                     # Name of the column in the FITS table used to build the map
+  colorbar_label: 'SNR'                       # Colorbar label
+  cmap: "bids:inferno"                        # Matplotlib colormap used for the image #"cmocean:curl_pink" #"cmasher:voltage"
+  vmin:                                       # Minimum value for color scaling (leave empty for automatic zscale)
+  vmax:                                       # Maximum value for color scaling (leave empty for automatic zscale)
+  vcenter:                                    # Value where to fix the center color of the colorbar
+  zscale_factor: 0.05                         # Fraction of the data range used for contrast scaling (default 0.05) (e.g., for percentile- or zscale-based normalization)
+  wcs_activate: True                          # If True, use WCS information for axis projection
+  add_flux_contours: True                     # If True, flux contours are added to the map
+  flux_contour_file: flux_contours.npy          # name of the file where contours to plot are saved
+  contours_color: "black"                       # color of the contours to plot
+  contours_outlined: True                       # If True, contour lines are black with white border
+  interpolate: False                          # If True, interpolate scattered data to fill missing pixels
+  interpolation_method: "nearest"             # Interpolation method used when interpolate is True. Options: nearest, linear, cubic
+  background: "transparent"                   # Background type of the output image (e.g., transparent or white)
+  visualize: True                             # If True, generate and display/save this map
 
 velocity_map:
   data_column: "velocity"           
