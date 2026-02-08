@@ -173,6 +173,7 @@ def add_contours_to_plot(params, contour_file_loaded, ax):
     contour_color = params.get("contours_color", "black")
     contour_alpha = params.get("contours_alpha", 0.9)
     contour_lw = params.get("contours_linewidth", 1)
+    contours_outlined = params["contours_outlined"]
 
     contours = load_contours(contour_file_loaded)
 
@@ -186,16 +187,46 @@ def add_contours_to_plot(params, contour_file_loaded, ax):
     if level_indices is None:
         level_indices = range(len(levels))
 
-    for i in level_indices:
-        if i >= len(allsegs):
-            continue
-        for seg in allsegs[i]:
-            ax.plot(
-                seg[:, 0],
-                seg[:, 1],
-                color=contour_color,
-                alpha=contour_alpha,
-                linewidth=contour_lw
-            )
+    if not contours_outlined:
+        for i in level_indices:
+            if i >= len(allsegs):
+                continue
+            for seg in allsegs[i]:
+                ax.plot(
+                    seg[:, 0],
+                    seg[:, 1],
+                    color=contour_color,
+                    alpha=contour_alpha,
+                    linewidth=contour_lw
+                )
+    else:
+        for i in level_indices:
+            if i >= len(allsegs):
+                continue
+
+            for seg in allsegs[i]:
+                # borde / halo
+                ax.plot(
+                    seg[:, 0],
+                    seg[:, 1],
+                    color="white",
+                    linewidth=contour_lw+0.9,
+                    alpha=contour_alpha,
+                    solid_joinstyle="round",
+                    solid_capstyle="round",
+                    zorder=10
+                )
+
+                # línea principal
+                ax.plot(
+                    seg[:, 0],
+                    seg[:, 1],
+                    color="black",
+                    linewidth=contour_lw,
+                    alpha=contour_alpha,
+                    solid_joinstyle="round",
+                    solid_capstyle="round",
+                    zorder=11
+                )
 
     
