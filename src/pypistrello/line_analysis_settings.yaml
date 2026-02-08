@@ -7,9 +7,9 @@
 # License-Filename: LICENSE
 #
 
-line_name: "Hα"  #"$\mathrm{H}\alpha$"
-line_restframe: [6562.8]
-redshift: 0.002682
+line_name: "Hα"          # Name of the line to analyse, e.g. latex: '$\mathrm{H}\alpha$'
+line_restframe: [λrest]  # Restframe wavelength of the line e.g. [6562.8]
+redshift: z              # Redshift value e.g. 0.002682
 
 # ============================================================================
 # pypistrello configuration
@@ -24,7 +24,7 @@ y_padding: 0.10                       # fraction to adjust y-axis
 reg_continuum: [λleft, λright]        # wavelength range for continuum
 reg_fitting: [λleft, λright]          # wavelength range including the line
 reg_excluded:                         # wavelength range(s) to exclude from the continuum
-# - [λleft, λright]                              
+# - [λleft, λright]                   # format, more than one can be added           
 window_continuum: null                # number of pixels from the line onwards to consider cont (semi-width)
 window_fitting: null                  # number of pixels from the line onwards to fit the line (semi-width)
 
@@ -36,7 +36,7 @@ trapz_nbins: 100                # Number of bins for the manual mode.
 
 #-----------------------------------------------------------------------------
 # Settings for offset and VELOCITY calculation.
-ref_spec: [x,y]     # (x,y) of the spectrum used as reference for crosscorr. FITS criterium
+ref_spec: [x,y]                 # (x,y) of the spectrum used as reference for crosscorr. FITS criterium
 
 #-----------------------------------------------------------------------------
 # Settings for LINE-FITTING
@@ -61,31 +61,34 @@ show_preview:                   # While running, show the plots for spectrum coo
 
 flux_map:
   data_column: "line_flux_trapz"              # Name of the column in the FITS table used to build the map
-  colorbar_label: "$\mathrm{Flux\ [erg\ s^{-1}\ cm^{-2}\ \AA^{-1}]}$"        # Colorbar label
+  colorbar_label: '$\mathrm{Flux\ [erg\ s^{-1}\ cm^{-2}\ \AA^{-1}]}$'        # Colorbar label
   cmap: "plasma"                              # Matplotlib colormap used for the image
   vmin:                                       # Minimum value for color scaling (leave empty for automatic zscale)
   vmax:                                       # Maximum value for color scaling (leave empty for automatic zscale)
-  zscale_factor: 0.05                         # Fraction of the data range used for contrast scaling (default 0.05) (e.g., for percentile- or zscale-based normalization)
-  wcs_activate: True                         # If True, use WCS information for axis projection
+  vcenter:                                    # Value where to fix the center color of the colorbar
+  zscale_factor: 0.05                         # Fraction of the data range used for contrast scaling (default 0.05)
+  wcs_activate: True                          # If True, use WCS information for axis projection
   calculate_contours: True                    # If True, compute and overlay contours on this map
   contour_levels: 7                           # Number of contour levels to compute (default 7)
   interpolate: False                          # If True, interpolate scattered data to fill missing pixels
   interpolation_method: "nearest"             # Interpolation method used when interpolate is True. Options: nearest, linear, cubic
   background: "transparent"                   # Background type of the output image (e.g., transparent or white)
-  visualize: True                             # If True, generate and display/save this map
+  visualize: True                             # If True, generate and display this map
 
 velocity_map:
   data_column: "velocity"           
-  colorbar_label: "$\mathrm{Velocity\ [km/s]}$" #"Velocity [km/s]" 
-  cmap: "seismic"                   
-  vmin: -100
-  vmax: 100
-  zscale_factor: 0.05
-  wcs_activate: True
-  add_flux_contours: True
-  flux_contour_file: flux_contours.npy
-  contours_color: "black"
-  interpolate: False                
-  interpolation_method: "nearest"   
-  background: "transparent"         
-  visualize: True 
+  colorbar_label: '$\mathrm{Velocity\ [km/s]}$' # Colorbar label, "Velocity [km/s]" 
+  cmap: 'paraview:fast'                         # Matplotlib colormap used for the image. 'paraview:fast' #'cmasher:fusion' #'cmocean:balance' #'seismic'               
+  vmin:                                         # Minimum value for color scaling (leave empty for automatic zscale)
+  vmax:                                         # Maximum value for color scaling (leave empty for automatic zscale)
+  vcenter:                                      # Value where to fix the center color of the colorbar, e.g. 0 for velocity
+  zscale_factor: 0.05                           # Fraction of the data range used for contrast scaling (default 0.05)
+  wcs_activate: True                            # If True, use WCS information for axis projection
+  add_flux_contours: True                       # If True, flux contours are added to the map
+  flux_contour_file: flux_contours.npy          # name of the file where contours to plot are saved
+  contours_color: "black"                       # color of the contours to plot
+  contours_outlined: True                       # If True, contour lines are black with white border
+  interpolate: False                            # If True, interpolate scattered data to fill missing pixels
+  interpolation_method: "nearest"               # Interpolation method used when interpolate is True. Options: nearest, linear, cubic
+  background: "transparent"                     # Background type of the output image (e.g., transparent or white)
+  visualize: True                               # If True, generate and display this map
