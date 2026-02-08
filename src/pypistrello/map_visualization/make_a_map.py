@@ -7,6 +7,9 @@
 # License-Filename: LICENSE
 #
 
+from cmap import Colormap
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import TwoSlopeNorm
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +19,6 @@ import teareduce as tea
 from .build_2d_map import build_2d_map
 from .calculate_contours import calculate_contours
 from .calculate_contours import add_contours_to_plot
-
 
 def make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_choice):
     """
@@ -58,9 +60,14 @@ def make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_
     visualize = params.get("visualize", False)
     interpolate = params.get("interpolate", True)
     interp_method = params.get("interpolation_method", "nearest")
+    vcenter = params.get("vcenter")
     zscale_factor = params.get("zscale_factor")
     if zscale_factor is None:
         zscale_factor = 0.05
+
+    cmap_name = params.get("cmap", "viridis")
+    print(f"The colormap for the plot is {cmap_name}")
+    cmap = Colormap(cmap_name).to_mpl()
 
     # Extract column information from the Table
     x = table["x"] # FITS format from the Table Attention!
@@ -95,9 +102,13 @@ def make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_
         print(f"Auto zscale applied: vmin={vmin:.3e}, vmax={vmax:.3e}")
 
     # Plotting
-    im = ax.imshow(zi, origin="lower",
-        cmap=params.get("cmap", "viridis"),
-        vmin=vmin, vmax=vmax)
+    if vcenter is not None:
+        print(f"The value {vcenter} will be fixed in the central color of the colorbar")
+        norm = TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+        im = ax.imshow(zi, origin="lower",cmap=cmap, norm=norm)
+    else:
+        print("No value given to fix the central color of the colorbar")
+        im = ax.imshow(zi, origin="lower",cmap=cmap, vmin=vmin, vmax=vmax)
 
     # Colorbar settings
     cbar = plt.colorbar(im, ax=ax)
