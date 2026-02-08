@@ -27,7 +27,8 @@ classifiers = [
 ]
 dependencies = [
     "teareduce",
-    "numina"
+    "numina",
+    "cmap"
 ]
 
 [project.optional-dependencies]
