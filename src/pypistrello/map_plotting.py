@@ -76,7 +76,7 @@ def main():
     parser.add_argument('-t', '--input-file', type=str, required=True, help='FITS table with results from spectral lines analysis.')
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for plotting')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
-    parser.add_argument( "--map", type=str, required=True, choices=["flux", "vel", "snr"], help="Choose the type of map: flux, vel, snr" )
+    parser.add_argument( "--map", type=str, required=True, choices=["flux", "vel", "snr", "voronoi"], help="Choose the type of map: flux, vel, snr, voronoi" )
     args = parser.parse_args()
 
     fits_filename = args.input_file

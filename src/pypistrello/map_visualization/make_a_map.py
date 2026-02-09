@@ -55,6 +55,8 @@ def make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_
         yaml_key = "velocity_map"
     elif map_choice == "snr":
         yaml_key = "snr_map"
+    elif map_choice == "voronoi":
+        yaml_key = "voronoi_map"
     else:
         raise ValueError("map_choice must be 'flux', 'vel' or 'snr'")
     
