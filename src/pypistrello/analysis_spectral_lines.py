@@ -25,6 +25,8 @@ from .file_loading.yn_question import question_yes_no
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
 
 from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra
+from .line_fitting.run_powerbin import run_powerbin
+from .line_fitting.sum_spectra_voronoi import sum_spectra_voronoi
 from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
 
@@ -102,21 +104,26 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         sys.exit(0)
     else:
         print("INFO: Skipping diagnostic diagram.")
+        print(f"{BLUE}{BOLD} Integrating {line_name} line area with trapezoids {RESET}")
+        table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs_info,
+                                                  wavelength_range, config_parameters, table_path,
+                                                  redshift, line_restframe)
+
+        print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation{RESET}")
+        pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters)
+
+        print("Summing spectra in each Voronoi bin")
+        cube_binned = sum_spectra_voronoi(cube_data, table_results_fitting)
+
         print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum {RESET}")
         offsets_pixel_array, fpeak_croscorr_array = crosscorrelate_spectra(cube_data, wavelength_range, config_parameters)
 
         print(f"{BLUE}{BOLD} Calculating velocities for line {line_name} {RESET}")
         velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
 
-        print(f"{BLUE}{BOLD} Integrating {line_name} line area with trapezoids {RESET}")
-        table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs_info,
-                                                  wavelength_range, config_parameters, table_path,
-                                                  redshift, line_restframe)
-    
-        # add velocity to table_results_fitting
         table_results_fitting["velocity"] = velocity * u.km / u.s
-        print(table_results_fitting)  
-        
+        print(table_results_fitting)
+
         print(f"Saving velocity values to {table_path}")
         save_table_with_wcs_extension(table_results_fitting, table_path, wcs_info=wcs_info)
     

@@ -99,12 +99,12 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
                 wavelength, flux, line_mask, cont_fit_func,)
 
             # SNR (signal-to-noise ratio)
-            line_snr = signal_to_noise(wavelength, flux,
+            line_snr, noise = signal_to_noise(wavelength, flux,
                                   cont_mask, cont_fit_func,
                                   line_mask, line_flux_trapz)
 
 
-            results.append((x_fits, y_fits, line_flux_trapz, line_snr))
+            results.append((x_fits, y_fits, line_flux_trapz, noise, line_snr))
 
             plot_inputs.append(
                 dict(
@@ -132,12 +132,13 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
     x_fits = results[:, 0].astype(int)
     y_fits = results[:, 1].astype(int)
     line_flux_trapz = results[:, 2].astype(float)
-    line_snr = results[:, 3].astype(float)
+    noise = results[:, 3].astype(float)
+    line_snr = results[:, 4].astype(float)
 
     print(f"Writing the line AREA and SNR to FITS table")
     table_results_fitting = Table(
-        [x_fits, y_fits, line_flux_trapz, line_snr],
-        names=("x", "y", "line_flux_trapz", "line_snr")
+        [x_fits, y_fits, line_flux_trapz, noise, line_snr],
+        names=("x", "y", "line_flux_trapz", "noise", "line_snr")
     )
     table_results_fitting.meta["LINE"] = config_parameters["line_name"]
     #table_results_fitting.meta["LINE_CEN"] = line_obs. #Attribute `LINE_CEN` of type <class 'numpy.ndarray'> cannot be added to FITS Header

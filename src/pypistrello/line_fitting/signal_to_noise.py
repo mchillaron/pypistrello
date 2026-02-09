@@ -79,6 +79,8 @@ def signal_to_noise(wavelength, flux,
     -------
     snr : float
         Signal-to-noise ratio of the emission line.
+    noise : float
+        Noise value of a pixel calculated as noise = noise_pix*dl*np.sqrt(N).
     """
 
     signal = line_flux_trapz    # the signal of the line
@@ -91,7 +93,7 @@ def signal_to_noise(wavelength, flux,
 
     # Noise calculation for 1 pixel
     noise_pix = np.nanstd(flux_cont_sub)
-    print(f"Continuum RMS (with continuum subtraction): {noise_pix:.3e}")
+    #print(f"Continuum RMS (with continuum subtraction): {noise_pix:.3e}")
 
     if verbose:
         noise_check = np.nanstd(flux_cont)
@@ -103,10 +105,10 @@ def signal_to_noise(wavelength, flux,
     if N <= 1:
         return np.nan
     dl = np.mean(np.diff(wavelength))
-    print(f"The line flux has been integrated in N={N} wavelength channels of width dλ={dl:.3e}")
+    #print(f"The line flux has been integrated in N={N} wavelength channels of width dλ={dl:.3e}")
 
     noise = noise_pix*dl*np.sqrt(N)
 
     # SNR
     snr = signal/noise
-    return snr
+    return snr, noise
