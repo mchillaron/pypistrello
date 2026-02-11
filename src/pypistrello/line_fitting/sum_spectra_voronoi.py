@@ -35,7 +35,7 @@ def sum_spectra_voronoi(cube_data, table_results_fitting, var_cube=None):
 
     bin_map = np.full((ny, nx), -1, dtype=int)
 
-    x = table_results_fitting["x"] - 1   # FITS → Python
+    x = table_results_fitting["x"] - 1      # FITS → Python
     y = table_results_fitting["y"] - 1
 
     bin_id = table_results_fitting["bin_id"]
@@ -46,16 +46,23 @@ def sum_spectra_voronoi(cube_data, table_results_fitting, var_cube=None):
     cube_binned = np.zeros((n_lambda, n_bins))
     var_binned = np.zeros((n_lambda, n_bins)) if var_cube is not None else None
 
-    # --- Sum spectra per bin ---
+    # Sum spectra per bin 
     for i in range(n_bins):
-        mask = (bin_map == i)           # 2D mask
-        spectra = cube_data[:, mask]    # (n_lambda, N_pix_bin)
-        cube_binned[:, i] = np.sum(spectra, axis=1)
+        mask = (bin_map == i)           # 2D mask (i is the bin ID value, we save in the mask the coordinates of all the spectra belongin to the same bin)
+        spectra = cube_data[:, mask]    # (n_lambda, N_pix_bin) Extract all the spectra at mask coordinates from the data_cube
+        cube_binned[:, i] = np.sum(spectra, axis=1) # add to cube_binned the total spectrum after sum
 
         if var_cube is not None:
             var_binned[:, i] = np.sum(var_cube[:, mask], axis=1)
 
-    return cube_binned #additionally, var_binned if needed
+    print("Reconstruction of a data cube with the same dimensions as the original with Voronoi bins spectra")
+    cube_voronoi = np.full((n_lambda, ny, nx), np.nan)
+    for i in range(n_bins):
+        mask = (bin_map == i)                               # selects all the pixels belonging to the same bin
+        cube_voronoi[:, mask] = cube_binned[:, i][:, None]  # cube_binned[:, i] is a 1D spectrum, [:, None] converts it into (n_lambda, 1)
+                                                            # NumPy repeats it automatically over all the pixels in the same bin.
+
+    return cube_binned, bin_map, cube_voronoi #additionally, var_binned if needed
 
 
         

@@ -48,7 +48,6 @@ def run_powerbin(table_results_fitting, config_parameters):
     bin_num = pow.bin_num                           # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
     bin_capacity = pow.bin_capacity                 # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.
     print("There is a total number of bins of", np.max(bin_num))
-    input("Press Enter to continue...")
 
     table_results_fitting["bin_id"] = bin_num
     table_results_fitting["bin_capacity"] = bin_capacity[bin_num]
