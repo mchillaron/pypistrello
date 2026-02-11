@@ -97,32 +97,40 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
     # Ask whether to run the diagnostic plot or not
     run_diag = question_yes_no("Do you want to run the diagnostic diagram?")
+
     if run_diag:
         print("INFO: Running diagnostic diagram...")
         plot_diagnostic_spectra(cube_data, wavelength_range, output_dir_path, config_parameters, redshift, line_restframe)
         print("INFO: Diagnostic diagram completed.")
         sys.exit(0)
+
     else:
         print("INFO: Skipping diagnostic diagram.")
+
         print(f"{BLUE}{BOLD} Integrating {line_name} line area with trapezoids {RESET}")
         table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs_info,
                                                   wavelength_range, config_parameters, table_path,
                                                   redshift, line_restframe)
 
-        print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation{RESET}")
+        print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation {RESET}")
         pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters)
 
-        print("Summing spectra in each Voronoi bin")
-        cube_binned = sum_spectra_voronoi(cube_data, table_results_fitting)
+        print("Summing spectra in each Voronoi bin and creating bin_map and cube_voronoi")
+        cube_2d_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data, table_results_fitting)
 
+        # At this point, the calculations are carried out on Voronoi-binned spectra
         print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum {RESET}")
-        offsets_pixel_array, fpeak_croscorr_array = crosscorrelate_spectra(cube_data, wavelength_range, config_parameters)
+        offsets_pixel_array, fpeaf_croscorr_array = crosscorrelate_spectra(cube_2d_binned, wavelength_range, 
+                                                                           config_parameters, table_results_fitting, 
+                                                                           bin_map=bin_map)
 
         print(f"{BLUE}{BOLD} Calculating velocities for line {line_name} {RESET}")
         velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
 
+        table_results_fitting["offsets"] = offsets_pixel_array
         table_results_fitting["velocity"] = velocity * u.km / u.s
-        print(table_results_fitting)
+        table_results_fitting[:5].pprint()
+        table_results_fitting[-5:].pprint()
 
         print(f"Saving velocity values to {table_path}")
         save_table_with_wcs_extension(table_results_fitting, table_path, wcs_info=wcs_info)

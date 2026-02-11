@@ -13,7 +13,104 @@ from tqdm import tqdm
 
 from numina.array.wavecalib.crosscorrelation import periodic_corr1d
 
-def crosscorrelate_spectra(cube_data, wavelength, config_parameters):
+def crosscorrelate_spectra(cube_data, wavelength, config_parameters,
+                           table_results_fitting, bin_map=None):
+    """
+    Cross-correlate spectra against a reference spectrum.
+    The function uses "periodic_corr1d" from numina package.
+
+    Works for:
+    - pixel-by-pixel cubes (bin_map=None)
+    - Voronoi-binned cubes (bin_map provided)
+
+    Returns offset and correlation peak per spaxel.
+    """
+
+    # Get the reference spectrum from the YAML configuration file:
+    x_ref, y_ref = np.array(config_parameters["ref_spec"])  # FITS
+    x_ref -= 1
+    y_ref -= 1
+
+    if bin_map is None:
+        spectrum_ref = cube_data[:, y_ref, x_ref]   # get the original spectrum at (xref, yref)
+    else:
+        ref_bin = bin_map[y_ref, x_ref]
+        spectrum_ref = cube_data[:, ref_bin]        # get the spectrum of the Voronoi bin to which (xref, yref) belongs
+
+    # The cross-correlation region is the whole continuum region without excluding anything
+    lambda_min, lambda_max = config_parameters["reg_continuum"]
+    nw = len(wavelength)
+
+    iw_min = max(np.searchsorted(wavelength, lambda_min), 0)
+    iw_max = min(np.searchsorted(wavelength, lambda_max), nw)
+
+    spectrum_region_ref = spectrum_ref[iw_min:iw_max]
+
+    # pixel-by-pixel cube (no voronoi binning done)
+    if bin_map is None:
+        nw, ny, nx = cube_data.shape
+        #offsets = np.full((ny, nx), np.nan) # they will be saved as a 2D map
+        #fpeaks  = np.full((ny, nx), np.nan) # they will be saved as a 2D map
+        offsets_pixel = []
+        fpeaks_croscorr = []
+
+        for y in tqdm(range(ny), desc="Cross-correlating spectra pixel by pixel"):
+            for x in range(nx):
+                spec = cube_data[:, y, x]           # extract one spectrum
+                if np.all(~np.isfinite(spec)):      # skip empty spectra
+                    continue
+
+                off, fp = periodic_corr1d(
+                    sp_reference=spectrum_region_ref,
+                    sp_offset=spec[iw_min:iw_max],
+                    remove_mean=True,
+                    frac_cosbell=0.10,
+                    zero_padding=50,
+                    debugplot=0   # 0: no plots; 12: one plot (crosscorrelation only); 22: more plots
+                )
+
+                #offsets[y, x] = off
+                #fpeaks[y, x] = fp
+                offsets_pixel.append(off)
+                fpeaks_croscorr.append(fp)
+
+        offsets_pixel_array = np.array(offsets_pixel)
+        fpeak_croscorr_array = np.array(fpeaks_croscorr)
+
+        return offsets_pixel_array, fpeak_croscorr_array  #offsets.ravel(), fpeaks.ravel() #.ravel() flattens an NDarray to 1D without changing the order
+    
+    # Voronoi-binned cube
+    else:
+        n_bins = cube_data.shape[1]
+        offsets_bin = np.zeros(n_bins)
+        fpeaks_croscorr_bin = np.zeros(n_bins)
+
+        for i in range(n_bins):
+            spec = cube_data[:, i]
+
+            off, fp = periodic_corr1d(
+                sp_reference=spectrum_region_ref,
+                sp_offset=spec[iw_min:iw_max],
+                remove_mean=True,
+                frac_cosbell=0.10,
+                zero_padding=50,
+                debugplot=0
+            )
+
+            offsets_bin[i] = off                    # shape (nbins,) The offset for the bin ID "i"
+            fpeaks_croscorr_bin[i] = fp             # shape (nbins,)
+
+        # Propagate bin values back to spaxels (1D!)
+        bin_id = table_results_fitting["bin_id"]    # shape (N_spaxels,) The bin ID of every spexel in the original cube
+        offsets = offsets_bin[bin_id]
+        fpeaks  = fpeaks_croscorr_bin[bin_id]
+        print(len(offsets), len(table_results_fitting))
+
+        return offsets, fpeaks
+
+
+
+def crosscorrelate_spectra_datacube(cube_data, wavelength, config_parameters):
 
     nw, ny, nx = cube_data.shape
 
