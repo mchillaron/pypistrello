@@ -28,7 +28,8 @@ classifiers = [
 dependencies = [
     "teareduce",
     "numina",
-    "cmap"
+    "cmap",
+    "powerbin"
 ]
 
 [project.optional-dependencies]
