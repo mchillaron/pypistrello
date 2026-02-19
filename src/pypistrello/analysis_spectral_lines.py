@@ -145,6 +145,7 @@ def main():
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for analysis')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
     parser.add_argument('-t', '--table', type=str, help='Name of FITS table where to save the line-fit parameters. Include .fits extension.')
+    parser.add_argument('--simulate', action='store_true', help='Run the program with simulated data instead of real FITS input.')
     args = parser.parse_args()
 
     fits_filename = args.input_file
@@ -152,6 +153,7 @@ def main():
     config_filename = args.config_file
     output_dir = args.output_dir
     table_file = args.table
+    simulate = args.simulate
     
     print("\n")
     print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")
