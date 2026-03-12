@@ -37,7 +37,8 @@ MAGENTA = "\033[95m"
 BOLD = "\033[1m"
 RESET   = "\033[0m"
 
-def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path):
+def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path,
+                            simulation_dir_path, debug_level, run_voronoi):
     """Main function to analyze spectral lines from a FITS file and save results to an output directory.
     
     Parameters
@@ -145,7 +146,9 @@ def main():
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for analysis')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
     parser.add_argument('-t', '--table', type=str, help='Name of FITS table where to save the line-fit parameters. Include .fits extension.')
-    parser.add_argument('--simulate', action='store_true', help='Run the program with simulated data instead of real FITS input.')
+    parser.add_argument('-vor', '--voronoi-tessellation', action='store_true', help='Whether to run Voronoi tessellation and binning of spectra with Powerbin.')
+    parser.add_argument('-sim', '--simulations-dir', type=str, help='Directory name where simulated data is found.')
+    parser.add_argument('--debug', type=int, default=0, help='Debug level (default: 0). Higher values (1 and 2) may print more detailed information for debugging purposes.')
     args = parser.parse_args()
 
     fits_filename = args.input_file
@@ -153,13 +156,16 @@ def main():
     config_filename = args.config_file
     output_dir = args.output_dir
     table_file = args.table
-    simulate = args.simulate
+    run_voronoi = args.voronoi_tessellation
+    simulation_dir = args.simulations_dir
+    debug_level = args.debug
     
     print("\n")
-    print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")
-    print("\U0001F987 Python Program for Integrating Spectral lines using TRapezoids,")
-    print("Error estimation and Line-features Optimization \U0001F987")
-    print(f"--------------------------------------------------------------------------{RESET}")
+    #print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")
+    print(f"{BOLD} \U0001F987 Welcome to PyPISTRELLO \U0001F987")
+    print(" Python Program for Integrating Spectral lines using TRapezoids,")
+    print(f" Error estimation and Line-features Optimization {RESET}")
+    #print(f"--------------------------------------------------------------------------{RESET}")
     print("\n")
 
 
@@ -182,6 +188,7 @@ def main():
     # DATA EXTENSION
     if data_extension < 0:
         raise ValueError(f"Invalid extension number of '{data_extension}': must be >= 0")
+    print(f"Extracting data from extension {data_extension} of the FITS file.")
     
     # OUTPUT
     # make sure the output does not contain extensions because it is a directory
@@ -214,10 +221,51 @@ def main():
     # protection against non-FITS files
     if not re.search(r'\.fits?$', table_file, re.IGNORECASE):
         raise ValueError(f"Input file '{table_file}' is not a FIT/FITS file. Please provide a valid FIT/FITS file.")
-
+    print(f"The parameters measured will be saved in a FITS table named '{table_file}' in the output directory")
     table_path = output_dir_path / table_file
 
-    analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path)
+    # SIMULATIONS DIRECTORY
+    # make sure the output does not contain extensions because it is a directory
+    if simulation_dir is not None:
+        if re.search(r'\.[a-zA-Z0-9]+$', simulation_dir):
+            raise ValueError(f"Simulation directory '{simulation_dir}' should not contain file extensions.")
+        simulation_dir_path = working_dir / simulation_dir
+        # print a preview of the first few items found in the simulations directory
+        if os.path.exists(simulation_dir_path):
+            print(f"{GREEN}INFO:{RESET} Simulation directory '{simulation_dir}' found. Some of the files inside are:")
+            files = sorted(os.listdir(simulation_dir_path))
+            if len(files) <= 10:
+                for item in files:
+                    print(f"  - {item}")
+            else:
+                for item in files[:5]:
+                    print(f"  - {item}")
+
+                print("  ...")
+
+                for item in files[-5:]:
+                    print(f"  - {item}")
+        else:
+            raise ValueError(f"{GREEN}INFO:{RESET} Simulation directory '{simulation_dir}' not found. Please provide a valid directory path.")
+    else:
+        print(f"{GREEN}INFO:{RESET} No simulation directory provided. No simulation analysis will be performed for error estimation.")
+        simulation_dir_path = None
+
+    # VORONOI TESSELLATION
+    if run_voronoi:
+        print(f"{GREEN}INFO:{RESET} Voronoi tessellation and binning of spectra will be performed")
+    else:
+        print(f"{GREEN}INFO:{RESET} Voronoi tessellation and binning of spectra will not be performed")
+
+    # DEBUG
+    # DATA EXTENSION
+    if debug_level < 0 and debug_level > 2:
+        raise ValueError(f"Invalid debug number of '{debug_level}': must be 0, 1 or 2")
+    print(f"Extracting data from extension {data_extension} of the FITS file.")
+
+
+    analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path, 
+                            simulation_dir_path, debug_level, run_voronoi)
 
 
 if __name__ == "__main__":
