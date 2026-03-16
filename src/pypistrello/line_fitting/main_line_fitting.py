@@ -39,7 +39,7 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
 
     validate_region_config(config_parameters)
     
-    results = []
+    results_area = []
     plot_inputs = []
     nw, ny, nx = cube_data.shape
     total_spectra = nx * ny
@@ -104,9 +104,46 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
                                   line_mask, line_flux_trapz)
 
 
-            results.append((x_fits, y_fits, line_flux_trapz, noise, line_snr))
+            results_area.append((x_fits, y_fits, line_flux_trapz, noise, line_snr))
 
-            plot_inputs.append(
+            #the plotinput info was here
+
+    # Convert list of tuples → columns
+    results_area = np.array(results_area)
+
+    x_fits = results_area[:, 0].astype(int)
+    y_fits = results_area[:, 1].astype(int)
+    line_flux_trapz = results_area[:, 2].astype(float)
+    noise = results_area[:, 3].astype(float)
+    line_snr = results_area[:, 4].astype(float)
+
+    print(f"Writing the line AREA and SNR to FITS table")
+    table_results_fitting = Table(
+        [x_fits, y_fits, line_flux_trapz, noise, line_snr],
+        names=("x", "y", "line_flux_trapz", "noise", "line_snr")
+    )
+    table_results_fitting.meta["LINE"] = config_parameters["line_name"]
+    #table_results_fitting.meta["LINE_CEN"] = line_obs. #Attribute `LINE_CEN` of type <class 'numpy.ndarray'> cannot be added to FITS Header
+    #table_results_fitting.meta["FLUX_UNIT"] = "erg/s/cm2/AA" #VerifyWarning: Keyword name 'FLUX_UNIT' is greater than 8 characters or contains characters not allowed by the FITS standard;
+    table_results_fitting.meta["COMMENT"] = "Integrated line flux after continuum subtraction"
+    table_results_fitting.meta["X_AXIS"] = "pixel axis 1"
+    table_results_fitting.meta["Y_AXIS"] = "pixel axis 2"
+
+    if table_parameters_path is not None:
+        print(f"Saving FITS table to {table_parameters_path}")
+        save_table_with_wcs_extension(
+            table_results_fitting,
+            table_parameters_path,
+            wcs_info=wcs_info
+        )
+
+    if config_parameters["save_pdf"]:
+        
+        print("Creting a PDF file with analysis plots")
+        pdf_path = output_dir_path / config_parameters["pdf_name"]
+
+        print("Collapsing information from all spectra in this cube to prepare the plots")
+        plot_inputs.append(
                 dict(
                     wavelength=wavelength,
                     flux=flux,
@@ -125,38 +162,7 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
                     y_pad=config_parameters["y_padding"],
                 )
             )
-
-    # Convert list of tuples → columns
-    results = np.array(results)
-
-    x_fits = results[:, 0].astype(int)
-    y_fits = results[:, 1].astype(int)
-    line_flux_trapz = results[:, 2].astype(float)
-    noise = results[:, 3].astype(float)
-    line_snr = results[:, 4].astype(float)
-
-    print(f"Writing the line AREA and SNR to FITS table")
-    table_results_fitting = Table(
-        [x_fits, y_fits, line_flux_trapz, noise, line_snr],
-        names=("x", "y", "line_flux_trapz", "noise", "line_snr")
-    )
-    table_results_fitting.meta["LINE"] = config_parameters["line_name"]
-    #table_results_fitting.meta["LINE_CEN"] = line_obs. #Attribute `LINE_CEN` of type <class 'numpy.ndarray'> cannot be added to FITS Header
-    #table_results_fitting.meta["FLUX_UNIT"] = "erg/s/cm2/AA" #VerifyWarning: Keyword name 'FLUX_UNIT' is greater than 8 characters or contains characters not allowed by the FITS standard;
-    table_results_fitting.meta["COMMENT"] = "Integrated line flux after continuum subtraction"
-    table_results_fitting.meta["X_AXIS"] = "pixel axis 1"
-    table_results_fitting.meta["Y_AXIS"] = "pixel axis 2"
-
-    print(f"Saving FITS table to {table_parameters_path}")
-    save_table_with_wcs_extension(
-        table_results_fitting,
-        table_parameters_path,
-        wcs_info=wcs_info
-    )
-
-    if config_parameters["save_pdf"]:
-        print("Creting a PDF file with analysis plots")
-        pdf_path = output_dir_path / config_parameters["pdf_name"]
+        
         save_trapz_plots_to_pdf(
             total_spectra,
             plot_inputs,
