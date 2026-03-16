@@ -11,6 +11,7 @@ from pathlib import Path
 
 import argparse
 import astropy.units as u
+import numpy as np
 import os
 import re
 import sys
@@ -29,6 +30,9 @@ from .line_fitting.run_powerbin import run_powerbin
 from .line_fitting.sum_spectra_voronoi import sum_spectra_voronoi
 from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
+
+from .simulated_data.process_simulations import process_simulations
+from .simulated_data.compute_sim_snr import compute_sim_snr
 
 
 GREEN   = "\033[92m"
@@ -53,14 +57,9 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         Path to the configuration YAML file with parameters for analysis.
     """
     
-    if data_extension == 0:
-        print(f"{GREEN}INFO:{RESET} Using extension 0 as data_header")
-    else:
-        print(f"{GREEN}INFO:{RESET} Using extension 0 as primary_header and extension {data_extension} as data_header")
-
     # load the FITS datacube and information from headers
     print(f"{BLUE}{BOLD} Reading header and data from FITS cube{RESET}")
-    primary_header, data_header, cube_data, wcs_info = read_fits_cube(fits_path, data_extension)
+    primary_header_real, data_header_real, cube_data_real, wcs_info_real = read_fits_cube(fits_path, data_extension)
     print("Cube headers and data read successfully")
 
     # Load de YAML file and read parameters
@@ -93,7 +92,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         wavelength_range = load_wavelength_range(wavelength_path)
         print(f"{GREEN}INFO:{RESET} Wavelength range loaded from {wavelength_path}.")
     else:
-        wavelength_range = get_wavelength_axis(data_header, primary_header)
+        wavelength_range = get_wavelength_axis(data_header_real, primary_header_real)
         print(f"{GREEN}INFO:{RESET} Wavelength range calculated.")
 
     # Ask whether to run the diagnostic plot or not
@@ -101,23 +100,76 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
     if run_diag:
         print("INFO: Running diagnostic diagram...")
-        plot_diagnostic_spectra(cube_data, wavelength_range, output_dir_path, config_parameters, redshift, line_restframe)
+        plot_diagnostic_spectra(cube_data_real, wavelength_range, output_dir_path, config_parameters, redshift, line_restframe)
         print("INFO: Diagnostic diagram completed.")
         sys.exit(0)
 
     else:
         print("INFO: Skipping diagnostic diagram.")
-
         print(f"{BLUE}{BOLD} Integrating {line_name} line area with trapezoids {RESET}")
-        table_results_fitting = main_line_fitting(output_dir_path, cube_data, wcs_info,
+        table_results_fitting = main_line_fitting(output_dir_path, cube_data_real, wcs_info_real,
                                                   wavelength_range, config_parameters, table_path,
                                                   redshift, line_restframe)
+        
+        if simulation_dir_path is not None:
+            print(f"{BLUE}{BOLD} Working with simulated cubes{RESET}")
+            sim_file = output_dir_path / "simulated_measurements.npy"
 
-        print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation {RESET}")
-        pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters)
+            if sim_file.exists():
+                load_simulated_data = question_yes_no(
+                    "Load simulated measurements from existing .npy file?"
+                )
+                if load_simulated_data:
+                    print(f"{GREEN}INFO:{RESET} Loading simulated measurements from {sim_file}")
+                    simulation_results = np.load(sim_file)
+                else:
+                    print(f"{GREEN}INFO:{RESET} Rerunning measurements on simulated cubes in {simulation_dir_path}")
+                    simulation_results = process_simulations(
+                        simulation_dir_path,
+                        output_dir_path,
+                        wavelength_range,
+                        data_extension,
+                        config_parameters,
+                        redshift,
+                        line_restframe
+                    )
+            else:
+                print(f"{GREEN}INFO:{RESET} Looking for simulated data in {simulation_dir_path}")
+                simulation_results = process_simulations(
+                    simulation_dir_path,
+                    output_dir_path,
+                    wavelength_range,
+                    data_extension,
+                    config_parameters,
+                    redshift,
+                    line_restframe
+                )
 
-        print("Summing spectra in each Voronoi bin and creating bin_map and cube_voronoi")
-        cube_2d_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data, table_results_fitting)
+            print(f"{BLUE}{BOLD} Calculating SNR using simulated measurements{RESET}")
+            snr_table = compute_sim_snr(table_results_fitting, simulation_results)
+            np.save(output_dir_path / "snr_values.npy", snr_table)
+        
+        else:
+            print(f"{GREEN}INFO:{RESET} No simulation directory provided. Skipping SNR calculation from simulations.")
+            snr_table = None
+            print(f"{MAGENTA} Attention!{RESET} The SNR values have been calculated as the ratio of the line flux ")
+            print(f" to the noise in the continuum, both estimated from the real data without using simulations.")
+            print(f" These SNR values are less accurate than those calculated using simulations and UNDERESTIMATE the true SNR,")
+            print(f" they only provide a rough estimate of the SNR for each spectrum.")
+
+
+        if run_voronoi:
+
+            if snr_table is None:
+                print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation {RESET}")
+                pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters)
+
+                print("Summing spectra in each Voronoi bin and creating bin_map and cube_voronoi")
+                cube_2d_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting)
+            else:
+                pass
+
+        input("stop and check, code updated to this point.")
 
         # At this point, the calculations are carried out on Voronoi-binned spectra
         print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum {RESET}")
@@ -134,7 +186,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         table_results_fitting[-5:].pprint()
 
         print(f"Saving velocity values to {table_path}")
-        save_table_with_wcs_extension(table_results_fitting, table_path, wcs_info=wcs_info)
+        save_table_with_wcs_extension(table_results_fitting, table_path, wcs_info=wcs_info_real)
     
     
 
@@ -259,7 +311,7 @@ def main():
 
     # DEBUG
     # DATA EXTENSION
-    if debug_level < 0 and debug_level > 2:
+    if debug_level < 0 or debug_level > 2:
         raise ValueError(f"Invalid debug number of '{debug_level}': must be 0, 1 or 2")
     print(f"Extracting data from extension {data_extension} of the FITS file.")
 
