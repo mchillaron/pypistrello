@@ -19,8 +19,162 @@ import teareduce as tea
 from .build_2d_map import build_2d_map
 from .calculate_contours import calculate_contours
 from .calculate_contours import add_contours_to_plot
+from .build_map_from_bins import build_map_from_bins
 
-def make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_choice):
+def make_a_map(table, wcs, config_parameters, working_dir,
+               output_dir_path, map_choice, bin_map=None):
+    """
+    Create a 2D map from tabular data and apply visualization settings.
+
+    Works for:
+    - spaxel-based tables (no Voronoi)
+    - bin-based tables (Voronoi)
+
+    Parameters
+    ----------
+    table : astropy.table.Table
+        Table containing spatial coordinates and physical quantities.
+        - If no Voronoi: one row per spaxel
+        - If Voronoi: one row per bin
+    wcs : astropy.wcs.WCS
+    config_parameters : dict
+    working_dir : str or Path
+    output_dir_path : str or Path
+    map_choice : str
+    bin_map : ndarray (ny, nx), optional
+        Required if table is Voronoi-binned
+    """
+
+    # Select YAML parameters
+    if map_choice == "flux":
+        yaml_key = "flux_map"
+    elif map_choice == "vel":
+        yaml_key = "velocity_map"
+    elif map_choice == "snr":
+        yaml_key = "snr_map"
+    elif map_choice == "voronoi":
+        yaml_key = "voronoi_map"
+    else:
+        raise ValueError("map_choice must be 'flux', 'vel', 'snr' or 'voronoi'")
+
+    params = config_parameters[yaml_key]
+
+    visualize = params.get("visualize", False)
+    interpolate = params.get("interpolate", True)
+    interp_method = params.get("interpolation_method", "nearest")
+
+    vcenter = params.get("vcenter")
+    zscale_factor = params.get("zscale_factor", 0.05)
+
+    cmap_name = params.get("cmap", "viridis")
+    print(f"[INFO] Colormap: {cmap_name}")
+    cmap = Colormap(cmap_name).to_mpl()
+
+    data_column = params["data_column"]
+
+    # Build the map
+    if bin_map is not None:
+        print("INFO: Building map from Voronoi bins")
+        zi = build_map_from_bins(bin_map, table, data_column)
+
+    else:
+        print("INFO: Building map from individual spaxels")
+        x = table["x"]
+        y = table["y"]
+        data = table[data_column]
+
+        zi = build_2d_map(
+            x, y, data,
+            interpolate=interpolate,
+            method=interp_method
+        )
+
+    print(f"Map shape: {zi.shape}")
+
+    # Plot setup
+    fig = plt.figure(figsize=(7, 6))
+
+    if params.get("wcs_activate", False) and wcs is not None:
+        ax = plt.subplot(projection=wcs)
+        ax.set_xlabel("RA")
+        ax.set_ylabel("DEC")
+    else:
+        ax = plt.subplot()
+        ax.set_xlabel("X [pix]")
+        ax.set_ylabel("Y [pix]")
+
+    # Color scaling
+    vmin = params.get("vmin")
+    vmax = params.get("vmax")
+
+    if vmin is None and vmax is None:
+        finite_zi = zi[np.isfinite(zi)]
+
+        if finite_zi.size == 0:
+            raise ValueError("No finite data available for zscale")
+
+        vmin, vmax = tea.zscale(image=finite_zi, factor=zscale_factor)
+        print(f"[INFO] Auto zscale: vmin={vmin:.3e}, vmax={vmax:.3e}")
+
+    # Plot image
+    if vcenter is not None:
+        print(f"[INFO] Using TwoSlopeNorm centered at {vcenter}")
+        norm = TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+        im = ax.imshow(zi, origin="lower", cmap=cmap, norm=norm)
+    else:
+        im = ax.imshow(zi, origin="lower", cmap=cmap, vmin=vmin, vmax=vmax)
+
+    # colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label(params.get("colorbar_label", ""))
+
+    # contours
+    if params.get("calculate_contours", False):
+        print("INFO: Calculating contours")
+        calculate_contours(params, table, working_dir, map_choice, ax)
+
+    if params.get("add_flux_contours", False):
+        contour_file_loaded = params.get("flux_contour_file")
+
+        if contour_file_loaded is None:
+            raise ValueError("add_flux_contours=True but no flux_contour_file specified")
+
+        contour_file_loaded_path = working_dir / contour_file_loaded
+        print(f"INFO: Adding contours from {contour_file_loaded_path}")
+        add_contours_to_plot(params, contour_file_loaded, ax)
+
+    # Save figure
+    bg = params.get("background", None)
+
+    if bg == "transparent":
+        transparent = True
+    else:
+        transparent = False
+        if bg is not None:
+            fig.patch.set_facecolor(bg)
+            ax.set_facecolor(bg)
+
+    os.makedirs(output_dir_path, exist_ok=True)
+
+    output_path = os.path.join(output_dir_path, f"{map_choice}_map.pdf")
+    output_path_png = os.path.join(output_dir_path, f"{map_choice}_map.png")
+
+    plt.savefig(output_path, dpi=200, bbox_inches="tight")
+
+    if transparent:
+        fig.savefig(output_path_png, dpi=300, transparent=True)
+
+    if visualize:
+        plt.show()
+
+    plt.close(fig)
+
+    print(f"[INFO] Map saved in {output_path}")
+
+
+
+
+def make_a_map_beforevoronoi(table, wcs, config_parameters, working_dir, output_dir_path, map_choice):
     """
     Create a 2D map from tabular data and apply visualization settings.
 
