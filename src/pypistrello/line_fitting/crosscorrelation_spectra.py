@@ -13,6 +13,108 @@ from tqdm import tqdm
 
 from numina.array.wavecalib.crosscorrelation import periodic_corr1d
 
+def plot_offsets(offsets):
+
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+    plt.hist(offsets[~np.isnan(offsets)], bins=50)
+    plt.xlabel("Pixel offset")
+    plt.ylabel("N")
+    plt.title("Offset distribution")
+    plt.show()
+
+def crosscorrelate_spectra_unified(
+        spectra,
+        wavelength,
+        config_parameters,
+        analysis_table):
+    """
+    Cross-correlate all spectra against a reference spectrum.
+
+    Parameters
+    ----------
+    spectra : ndarray (n_lambda, N)
+        Spectra (spaxels OR Voronoi bins)
+
+    wavelength : ndarray (n_lambda,)
+        Wavelength array
+
+    analysis_table : astropy.table.Table (length N)
+        Must contain 'x', 'y' (1-based coordinates)
+
+    Returns
+    -------
+    offsets : ndarray (N,)
+    fpeaks  : ndarray (N,)
+    """
+
+    import numpy as np
+    from tqdm import tqdm
+
+    n_lambda, N = spectra.shape
+
+    print(f"INFO: Cross-correlation on {N} spectra")
+
+    #  Get reference spectrum from coordinates
+    x_ref, y_ref = np.array(config_parameters["ref_spec"])  # FITS coords
+
+    # Find closest object in the table
+    dx = analysis_table["x"] - x_ref
+    dy = analysis_table["y"] - y_ref
+
+    dist = np.sqrt(dx**2 + dy**2)
+    ref_index = np.argmin(dist)
+
+    print(f"INFO: Reference spectrum index: {ref_index}")
+    print(f"INFO: Closest position: x={analysis_table['x'][ref_index]}, y={analysis_table['y'][ref_index]}")
+
+    spectrum_ref = spectra[:, ref_index]
+
+    # Define wavelength region
+    
+    lambda_min, lambda_max = config_parameters["reg_continuum"]
+
+    iw_min = np.searchsorted(wavelength, lambda_min)
+    iw_max = np.searchsorted(wavelength, lambda_max)
+
+    spectrum_region_ref = spectrum_ref[iw_min:iw_max]
+
+    print(f"[DEBUG] Wavelength window: {lambda_min} - {lambda_max}")
+    print(f"[DEBUG] Pixel range: {iw_min}:{iw_max}")
+
+    # Loop over spectra
+    offsets = np.zeros(N)
+    fpeaks = np.zeros(N)
+
+    for i in tqdm(range(N), desc="Cross-correlating"):
+
+        spec = spectra[:, i]
+
+        # skip bad spectra
+        if np.all(~np.isfinite(spec)):
+            offsets[i] = np.nan
+            fpeaks[i] = np.nan
+            continue
+
+        off, fp = periodic_corr1d(
+            sp_reference=spectrum_region_ref,
+            sp_offset=spec[iw_min:iw_max],
+            remove_mean=True,
+            frac_cosbell=0.10,
+            zero_padding=50,
+            debugplot=0
+        )
+
+        offsets[i] = off
+        fpeaks[i] = fp
+
+    print("INFO: Cross-correlation completed")
+    plot_offsets(offsets)
+    
+    return offsets, fpeaks
+
+
 def crosscorrelate_spectra(cube_data, wavelength, config_parameters,
                            table_results_fitting, bin_map=None):
     """
@@ -163,6 +265,15 @@ def crosscorrelate_spectra_datacube(cube_data, wavelength, config_parameters):
 def convert_offset_velocity(offsets_pixel_array, wavelength,
                             redshift, line_restframe):
     
+    """
+    Convert pixel offsets into velocity.
+
+    Parameters
+    ----------
+    offsets : ndarray (N,)
+    wavelength : ndarray (n_lambda,)
+    """
+
     dlambda_dp = np.mean(np.diff(wavelength)) # Å/pixel o nm/pixel
     lambda_obs = np.array(line_restframe) * (1 + redshift)
 
@@ -170,7 +281,8 @@ def convert_offset_velocity(offsets_pixel_array, wavelength,
     delta_lambda = offsets_pixel_array * dlambda_dp
     c_kms = 299792.458
     velocity_array = c_kms * delta_lambda / lambda_obs
-    print(f"The velocity values for every offset have been calculated: {velocity_array} km/s")
+    print(f"INFO: The velocity values for every offset have been calculated: {velocity_array} km/s")
+    print(f"INFO: Velocity computed for {len(velocity_array)} spectra")
 
     return velocity_array
 

@@ -25,14 +25,17 @@ from .file_loading.yn_question import question_yes_no
 
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
 
-from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra
-from .line_fitting.run_powerbin import run_powerbin
-from .line_fitting.sum_spectra_voronoi import sum_spectra_voronoi
+from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra_unified
 from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
 from .line_fitting.main_line_fitting import main_line_fitting
 
 from .simulated_data.process_simulations import process_simulations
 from .simulated_data.compute_sim_snr import compute_sim_snr
+from .voronoi_binning.run_powerbin import run_powerbin
+from .voronoi_binning.sum_spectra_voronoi import sum_spectra_voronoi
+from .voronoi_binning.build_voronoi_table import build_voronoi_table
+from .voronoi_binning.extract_spectra_from_table import extract_spectra_from_table
+from .voronoi_binning.extract_spectra_from_table import check_alignment
 
 
 GREEN   = "\033[92m"
@@ -147,7 +150,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
             print(f"{BLUE}{BOLD} Calculating SNR using simulated measurements{RESET}")
             snr_table = compute_sim_snr(table_results_fitting, simulation_results)
-            np.save(output_dir_path / "snr_values.npy", snr_table)
+            np.savetxt(output_dir_path / "snr_values.txt", snr_table)
         
         else:
             print(f"{GREEN}INFO:{RESET} No simulation directory provided. Skipping SNR calculation from simulations.")
@@ -159,34 +162,58 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
 
         if run_voronoi:
+            print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation {RESET}")
 
-            if snr_table is None:
-                print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation {RESET}")
-                pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters)
+            pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters, snr_table=snr_table)
 
-                print("Summing spectra in each Voronoi bin and creating bin_map and cube_voronoi")
-                cube_2d_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting)
+            cube_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting, output_dir_path)
+
+            # adapt the Table to the summed spectra after voronoi binning
+            analysis_table = build_voronoi_table(table_results_fitting, pow)
+            spectra = cube_binned   # (n_lambda, n_bins)
+            table_path = output_dir_path / "table_voronoi.fits"
+
+        else:
+            print(f"{GREEN}INFO:{RESET} No Voronoi binning")
+
+            spectra = extract_spectra_from_table(cube_data_real, table_results_fitting)
+            analysis_table = table_results_fitting
+            bin_map = None
+            cube_voronoi = None
+            table_path = table_path
+
+            if check_alignment(cube_data_real, analysis_table, spectra):
+                print(f"{GREEN}INFO:{RESET} Spectra alignment check PASSED")
             else:
-                pass
-
-        input("stop and check, code updated to this point.")
-
-        # At this point, the calculations are carried out on Voronoi-binned spectra
+                print(f"{MAGENTA}WARNING:{RESET} Spectra alignment check FAILED. There may be a mismatch between the spectra extracted from the cube and the coordinates in the table.")
+                ValueError("Please check the coordinates in the table and the structure of the cube data.")
+            
+            
         print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum {RESET}")
-        offsets_pixel_array, fpeaf_croscorr_array = crosscorrelate_spectra(cube_2d_binned, wavelength_range, 
-                                                                           config_parameters, table_results_fitting, 
-                                                                           bin_map=bin_map)
+
+        offsets_pixel_array, fpeaks = crosscorrelate_spectra_unified(
+            spectra,
+            wavelength_range,
+            config_parameters,
+            analysis_table
+        )
 
         print(f"{BLUE}{BOLD} Calculating velocities for line {line_name} {RESET}")
-        velocity = convert_offset_velocity(offsets_pixel_array, wavelength_range, redshift, line_restframe)
 
-        table_results_fitting["offsets"] = offsets_pixel_array
-        table_results_fitting["velocity"] = velocity * u.km / u.s
-        table_results_fitting[:5].pprint()
-        table_results_fitting[-5:].pprint()
+        velocity = convert_offset_velocity(
+            offsets_pixel_array,
+            wavelength_range,
+            redshift,
+            line_restframe
+        )
+
+        analysis_table["offsets"] = offsets_pixel_array
+        analysis_table["velocity"] = velocity * u.km / u.s
+        analysis_table[:5].pprint()
+        analysis_table[-5:].pprint()
 
         print(f"Saving velocity values to {table_path}")
-        save_table_with_wcs_extension(table_results_fitting, table_path, wcs_info=wcs_info_real)
+        save_table_with_wcs_extension(analysis_table, table_path, wcs_info=wcs_info_real)
     
     
 
