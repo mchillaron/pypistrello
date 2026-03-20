@@ -42,6 +42,7 @@ ref_spec: [x,y]                 # (x,y) of the spectrum used as reference for cr
 # Settings for LINE-FITTING
 line_model_fit: True            # Perform the fitting of the line
 plot_residuals: True            # Save plots of residuals 
+model_to_fit: "gaussian"        # Model to fit, e.g. "gaussian"
 
 #-----------------------------------------------------------------------------
 # Settings for plotting outputs after analysis.
