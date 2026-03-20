@@ -10,7 +10,7 @@
 from pathlib import Path
 
 import argparse
-import astropy.units as u
+
 import numpy as np
 import os
 import re
@@ -24,10 +24,8 @@ from .file_loading.save_table_fits import save_table_with_wcs_extension
 from .file_loading.yn_question import question_yes_no
 
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
-
-from .line_fitting.crosscorrelation_spectra import crosscorrelate_spectra_unified
-from .line_fitting.crosscorrelation_spectra import convert_offset_velocity
-from .line_fitting.main_line_fitting import main_line_fitting
+from .area_fitting.main_line_fitting import main_line_fitting
+from .analysis_tools.measure_spectra_properties import measure_spectra_properties
 
 from .simulated_data.process_simulations import process_simulations
 from .simulated_data.compute_sim_snr import compute_sim_snr
@@ -36,6 +34,8 @@ from .voronoi_binning.sum_spectra_voronoi import sum_spectra_voronoi
 from .voronoi_binning.build_voronoi_table import build_voronoi_table
 from .voronoi_binning.extract_spectra_from_table import extract_spectra_from_table
 from .voronoi_binning.extract_spectra_from_table import check_alignment
+from .voronoi_binning.propagate_bin_to_spaxel import propagate_bin_to_spaxel_table
+from .voronoi_binning.save_voronoi_bin_spectra import save_voronoi_bin_spectra_pdf
 
 
 GREEN   = "\033[92m"
@@ -127,30 +127,17 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                     simulation_results = np.load(sim_file)
                 else:
                     print(f"{GREEN}INFO:{RESET} Rerunning measurements on simulated cubes in {simulation_dir_path}")
-                    simulation_results = process_simulations(
-                        simulation_dir_path,
-                        output_dir_path,
-                        wavelength_range,
-                        data_extension,
-                        config_parameters,
-                        redshift,
-                        line_restframe
-                    )
+                    simulation_results = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
+                                                            data_extension, config_parameters, redshift, line_restframe)
             else:
                 print(f"{GREEN}INFO:{RESET} Looking for simulated data in {simulation_dir_path}")
-                simulation_results = process_simulations(
-                    simulation_dir_path,
-                    output_dir_path,
-                    wavelength_range,
-                    data_extension,
-                    config_parameters,
-                    redshift,
-                    line_restframe
-                )
+                simulation_results = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
+                                                        data_extension,config_parameters,redshift,line_restframe)
 
             print(f"{BLUE}{BOLD} Calculating SNR using simulated measurements{RESET}")
             snr_table = compute_sim_snr(table_results_fitting, simulation_results)
-            np.savetxt(output_dir_path / "snr_values.txt", snr_table)
+            table_results_fitting["snr"] = snr_table
+
         
         else:
             print(f"{GREEN}INFO:{RESET} No simulation directory provided. Skipping SNR calculation from simulations.")
@@ -171,8 +158,18 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
             # adapt the Table to the summed spectra after voronoi binning
             analysis_table = build_voronoi_table(table_results_fitting, pow)
             spectra = cube_binned   # (n_lambda, n_bins)
-            table_path = output_dir_path / "table_voronoi.fits"
 
+            if debug_level >= 1:
+                save_voronoi_bin_spectra_pdf(
+                    spectra=cube_binned,
+                    wavelength=wavelength_range,
+                    analysis_table=analysis_table,
+                    config_parameters=config_parameters,
+                    output_dir=output_dir_path,
+                    simulated_spectra=None,  
+                    grid_size=(5, 5),
+                    sort_by_snr=True
+                )
         else:
             print(f"{GREEN}INFO:{RESET} No Voronoi binning")
 
@@ -180,40 +177,26 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
             analysis_table = table_results_fitting
             bin_map = None
             cube_voronoi = None
-            table_path = table_path
 
             if check_alignment(cube_data_real, analysis_table, spectra):
                 print(f"{GREEN}INFO:{RESET} Spectra alignment check PASSED")
             else:
                 print(f"{MAGENTA}WARNING:{RESET} Spectra alignment check FAILED. There may be a mismatch between the spectra extracted from the cube and the coordinates in the table.")
                 ValueError("Please check the coordinates in the table and the structure of the cube data.")
-            
-            
-        print(f"{BLUE}{BOLD} Crosscorrelation to reference spectrum {RESET}")
 
-        offsets_pixel_array, fpeaks = crosscorrelate_spectra_unified(
-            spectra,
-            wavelength_range,
-            config_parameters,
-            analysis_table
-        )
 
-        print(f"{BLUE}{BOLD} Calculating velocities for line {line_name} {RESET}")
-
-        velocity = convert_offset_velocity(
-            offsets_pixel_array,
-            wavelength_range,
-            redshift,
-            line_restframe
-        )
-
-        analysis_table["offsets"] = offsets_pixel_array
-        analysis_table["velocity"] = velocity * u.km / u.s
-        analysis_table[:5].pprint()
-        analysis_table[-5:].pprint()
-
-        print(f"Saving velocity values to {table_path}")
-        save_table_with_wcs_extension(analysis_table, table_path, wcs_info=wcs_info_real)
+        print("Data preparation ready for analysis of spectral lines") 
+        analysis_table = measure_spectra_properties(spectra,wavelength_range,config_parameters,
+                                                    analysis_table, redshift, line_restframe)
+        
+        if run_voronoi:
+            columns_to_copy = ["velocity","offsets","sigma","flux_gauss",]
+            table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting,analysis_table,columns_to_copy)
+            # Save final unified table
+            table_collapsed.write(table_path, overwrite=True)
+            table_collapsed[:5].pprint()
+            table_collapsed[-5:].pprint()
+            print("INFO: Final unified table saved")
     
     
 
