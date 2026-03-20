@@ -78,7 +78,7 @@ def main():
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for plotting')
     parser.add_argument('-b', '--bin-map', action='store_true', help='Indicates that the input table contains binned data instead of individual spaxels. If this flag is not set, the program will assume the table contains individual spaxels.')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
-    parser.add_argument( "--map", type=str, required=True, choices=["flux", "vel", "snr", "voronoi"], help="Choose the type of map: flux, vel, snr, voronoi" )
+    parser.add_argument( "--map", type=str, required=True, choices=["flux", "vel", "snr", "voronoi", "sigma"], help="Choose the type of map: flux, vel, snr, voronoi, sigma" )
     args = parser.parse_args()
 
     fits_filename = args.input_file
