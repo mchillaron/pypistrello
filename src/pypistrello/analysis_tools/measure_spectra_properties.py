@@ -10,6 +10,7 @@
 import astropy.units as u
 from ..area_fitting.crosscorrelation_spectra import crosscorrelate_spectra_unified
 from ..area_fitting.crosscorrelation_spectra import convert_offset_velocity
+from ..model_fitting.spectrum_fitting import fit_gaussians_to_all_spectra_lmfit
 
 def measure_spectra_properties(
     spectra,
@@ -23,7 +24,7 @@ def measure_spectra_properties(
     Apply physical measurements to spectra.
     Works for real AND simulated spectra.
     """
-    print(f"Crosscorrelation to reference spectrum")
+    print(f"INFO:Crosscorrelation to reference spectrum")
     offsets, fpeaks = crosscorrelate_spectra_unified(
         spectra,
         wavelength_range,
@@ -31,7 +32,7 @@ def measure_spectra_properties(
         analysis_table
     )
 
-    print(f"Calculating velocities from offsets")
+    print(f"INFO: Calculating velocities from offsets")
     velocity = convert_offset_velocity(
         offsets,
         wavelength_range,
@@ -43,5 +44,17 @@ def measure_spectra_properties(
     analysis_table["velocity"] = velocity * u.km / u.s
     analysis_table[:5].pprint()
     analysis_table[-5:].pprint()
+
+    input("press enter to continue")
+    if config_parameters["line_model_fit"]:
+        print('INFO: Fitting line models with lmfit')
+        analysis_table = fit_gaussians_to_all_spectra_lmfit(
+            spectra,
+            wavelength_range,
+            analysis_table,
+            config_parameters
+        )
+        analysis_table[:5].pprint()
+        analysis_table[-5:].pprint()
 
     return analysis_table

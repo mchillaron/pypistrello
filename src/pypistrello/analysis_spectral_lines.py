@@ -190,7 +190,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                                                     analysis_table, redshift, line_restframe)
         
         if run_voronoi:
-            columns_to_copy = ["velocity","offsets","sigma","flux_gauss",]
+            columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "cont_gauss", "area_gauss", "chi2_gauss"]
             table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting,analysis_table,columns_to_copy)
             # Save final unified table
             table_collapsed.write(table_path, overwrite=True)
