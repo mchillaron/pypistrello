@@ -29,7 +29,8 @@ dependencies = [
     "teareduce",
     "numina",
     "cmap",
-    "powerbin"
+    "powerbin",
+    "lmfit",
 ]
 
 [project.optional-dependencies]
