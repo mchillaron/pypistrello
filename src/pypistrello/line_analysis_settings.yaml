@@ -43,6 +43,11 @@ ref_spec: [x,y]                 # (x,y) of the spectrum used as reference for cr
 line_model_fit: True            # Perform the fitting of the line
 plot_residuals: True            # Save plots of residuals 
 model_to_fit: "gaussian"        # Model to fit, e.g. "gaussian"
+initial_guesses:                # if auto, default parameters are calculated. Replace auto with a value
+  amp: auto                     # amp    : peak height of the line (same units as flux)
+  center: auto                  # center : central wavelength of the line (same units as wavelength, e.g. Å)
+  sigma: auto                   # sigma  : Gaussian width (standard deviation, same units as wavelength)
+
 
 #-----------------------------------------------------------------------------
 # Settings for plotting outputs after analysis.
@@ -77,7 +82,7 @@ flux_map:
   visualize: True                             # If True, generate and display this map
 
 snr_map:
-  data_column: "line_snr"                     # Name of the column in the FITS table used to build the map
+  data_column: "line_snr"                     # Name of the column in the FITS table used to build the map. Also "bin_snr"
   colorbar_label: 'SNR'                       # Colorbar label
   cmap: "bids:inferno"                        # Matplotlib colormap used for the image #"cmocean:curl_pink" #"cmasher:voltage"
   vmin:                                       # Minimum value for color scaling (leave empty for automatic zscale)
@@ -94,12 +99,44 @@ snr_map:
   background: "transparent"                   # Background type of the output image (e.g., transparent or white)
   visualize: True                             # If True, generate and display/save this map
 
+voronoi_map:
+  data_column: "bin_id"                       # Name of the column in the FITS table used to build the map
+  colorbar_label: 'Voronoi tessellation Bin ID'    # Colorbar label
+  cmap: 'glasbey:glasbey'                     # Matplotlib colormap used for the image #"cmocean:curl_pink" #"cmasher:voltage"
+  vmin:                                       # Minimum value for color scaling (leave empty for automatic zscale)
+  vmax:                                       # Maximum value for color scaling (leave empty for automatic zscale)
+  vcenter:                                    # Value where to fix the center color of the colorbar
+  zscale_factor: 0.00                         # Fraction of the data range used for contrast scaling (default 0.05) (e.g., for percentile- or zscale-based normalization)
+  wcs_activate: False                         # If True, use WCS information for axis projection
+  interpolate: False                          # If True, interpolate scattered data to fill missing pixels
+  interpolation_method: "nearest"             # Interpolation method used when interpolate is True. Options: nearest, linear, cubic
+  background: "transparent"                   # Background type of the output image (e.g., transparent or white)
+  visualize: True                             # If True, generate and display/save this map
+
 velocity_map:
   data_column: "velocity"           
   colorbar_label: '$\mathrm{Velocity\ [km/s]}$' # Colorbar label, "Velocity [km/s]" 
   cmap: 'paraview:fast'                         # Matplotlib colormap used for the image. 'paraview:fast' #'cmasher:fusion' #'cmocean:balance' #'seismic'               
   vmin:                                         # Minimum value for color scaling (leave empty for automatic zscale)
   vmax:                                         # Maximum value for color scaling (leave empty for automatic zscale)
+  vcenter:                                      # Value where to fix the center color of the colorbar, e.g. 0 for velocity
+  zscale_factor: 0.05                           # Fraction of the data range used for contrast scaling (default 0.05)
+  wcs_activate: True                            # If True, use WCS information for axis projection
+  add_flux_contours: True                       # If True, flux contours are added to the map
+  flux_contour_file: flux_contours.npy          # name of the file where contours to plot are saved
+  contours_color: "black"                       # color of the contours to plot
+  contours_outlined: True                       # If True, contour lines are black with white border
+  interpolate: False                            # If True, interpolate scattered data to fill missing pixels
+  interpolation_method: "nearest"               # Interpolation method used when interpolate is True. Options: nearest, linear, cubic
+  background: "transparent"                     # Background type of the output image (e.g., transparent or white)
+  visualize: True                               # If True, generate and display this map
+
+sigma_map:
+  data_column: "sigma_gauss"           
+  colorbar_label: '$\mathrm{Sigma\ [ ]}$'       # Colorbar label, "Velocity [km/s]" 
+  cmap: 'tol:rainbow_PuRd'                      # Matplotlib colormap used for the image. 'paraview:fast' #'cmasher:fusion' #'cmocean:balance' #'seismic'               
+  vmin: 0.4                                     # Minimum value for color scaling (leave empty for automatic zscale)
+  vmax: 1.7                                     # Maximum value for color scaling (leave empty for automatic zscale)
   vcenter:                                      # Value where to fix the center color of the colorbar, e.g. 0 for velocity
   zscale_factor: 0.05                           # Fraction of the data range used for contrast scaling (default 0.05)
   wcs_activate: True                            # If True, use WCS information for axis projection
