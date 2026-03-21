@@ -8,62 +8,104 @@
 #
 
 import numpy as np
+from .fit_continuum_model import fit_continuum
 from .line_models import gaussian_lmfit
 from .line_models import fit_model_lmfit
 
-def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config):
+def resolve_guess(value, default):
     """
-    Fit a linemodel to one spectrum using lmfit.
+    Resolve initial guess value.
 
-    Returns a dictionary with fit parameters and statistics.
+    Parameters
+    ----------
+    value : user-provided value (can be None or 'auto')
+    default : automatic value computed from data
+
+    Returns
+    -------
+    float
     """
-    # Read from YAML the type of fitting we will apply:
-    model_to_fit = config.get("model_to_fit", "gaussian").lower()
-    if model_to_fit != "gaussian":
-        print(f"WARNING: model_to_fit '{model_to_fit}' not recognized, defaulting to 'gaussian'")
-        model_to_fit = "gaussian"
-    
-    if model_to_fit == "gaussian":
-        chosen_model_func = gaussian_lmfit
+    if value is None or value == "auto":
+        return default
+    return value
 
-    # Fitting window
-    lmin, lmax = config["reg_continuum"]
-    mask = (wavelength >= lmin) & (wavelength <= lmax)
-    x = wavelength[mask]
-    y = spectrum[mask]
+def get_model_and_initial_params(config, x, y):
+    # read the model to fit from the YAML
+    model_name = config.get("model", "gaussian").lower()
 
-    if len(x) < 5 or np.all(~np.isfinite(y)):
+    if model_name == "gaussian":
+        model_func = gaussian_lmfit
+
+        guesses = config.get("initial_guesses", {})
+        p0 = {
+            "amp": resolve_guess(guesses.get("amp"), np.nanmax(y)),
+            "center": resolve_guess(guesses.get("center"), x[np.nanargmax(y)]),
+            "sigma": resolve_guess(guesses.get("sigma"), 1.0),
+        }
+
+    else:
+        raise ValueError(f"Model '{model_name}' not implemented")
+
+    return model_func, p0
+
+def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, debug=False):
+    """
+    Fit Gaussian to one spectrum using lmfit, with proper continuum handling.
+    """
+
+    # Fit continuum
+    continuum_model = fit_continuum(wavelength, spectrum, config)
+
+    if continuum_model is None:
+        print("INFO: Continuum fit failed")
         return None
 
-    # Initial guesses
-    amp0 = np.nanmax(y) - np.nanmedian(y)
-    mu0 = x[np.nanargmax(y)]
-    sigma0 = 1.0
-    cont0 = np.nanmedian(y)
-    p0 = {"amp": amp0, "center": mu0, "sigma": sigma0, "cont": cont0}
+    continuum = continuum_model(wavelength)
+    spectrum_sub = spectrum - continuum
 
-    result = fit_model_lmfit(x, y, chosen_model_func, p0)
+    # Select fitting region
+    
+    lmin, lmax = config["reg_fitting"]
+    mask = (wavelength >= lmin) & (wavelength <= lmax)
+
+    x = wavelength[mask]
+    y = spectrum_sub[mask]
+
+    if len(x) < 5 or np.all(~np.isfinite(y)):
+        raise ValueError("Not enough valid data points for fitting the line in 'reg_fitting'")
+
+    model_func, p0 = get_model_and_initial_params(config, x, y)
+    result = fit_model_lmfit(x, y, model_func, p0)
+
     if result is None:
         return None
 
-    # Extract parameters
+    # Extract results
     amp = result.params["amp"].value
     mu = result.params["center"].value
     sigma = result.params["sigma"].value
-    cont = result.params["cont"].value
 
-    # Area of Gaussian
     area = amp * sigma * np.sqrt(2 * np.pi)
-
-    # Chi2 and residuals
     chi2 = result.chisqr
-    residuals = result.residual  # array same length as x
+    residuals = result.residual
+
+    # Debug plot
+    if debug:
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.plot(wavelength, spectrum, label="Original")
+        plt.plot(wavelength, continuum, label="Continuum")
+        plt.plot(x, y, label="Line (cont sub)")
+        plt.plot(x, result.best_fit, label="Gaussian fit")
+        plt.legend()
+        plt.title("DEBUG FIT")
+        plt.show()
 
     return {
         "amp": amp,
         "mu": mu,
         "sigma": sigma,
-        "cont": cont,
         "area": area,
         "chi2": chi2,
         "residuals": residuals
@@ -82,24 +124,26 @@ def fit_gaussians_to_all_spectra_lmfit(
     """
 
     n_spec = spectra.shape[1]
-    print(f"INFO: Fitting Gaussian models to {n_spec} spectra with lmfit")
+    print(f"INFO: Starting Gaussian fitting for {n_spec} spectra")
 
-    # Prepare arrays to store results
     amp_arr = np.full(n_spec, np.nan)
     mu_arr = np.full(n_spec, np.nan)
     sigma_arr = np.full(n_spec, np.nan)
-    cont_arr = np.full(n_spec, np.nan)
     area_arr = np.full(n_spec, np.nan)
     chi2_arr = np.full(n_spec, np.nan)
-    residuals_list = [None] * n_spec # optionally, residuals could be stored in a list
 
     for i in range(n_spec):
+
+        if i % 50 == 0:
+            print(f"INFO: Fitting spectrum {i}/{n_spec}")
+
         spec = spectra[:, i]
 
         result = fit_gaussian_spectrum_lmfit(
             wavelength,
             spec,
-            config
+            config,
+            debug=False
         )
 
         if result is None:
@@ -108,19 +152,16 @@ def fit_gaussians_to_all_spectra_lmfit(
         amp_arr[i] = result["amp"]
         mu_arr[i] = result["mu"]
         sigma_arr[i] = result["sigma"]
-        cont_arr[i] = result["cont"]
         area_arr[i] = result["area"]
         chi2_arr[i] = result["chi2"]
-        residuals_list[i] = result["residuals"]
 
-    # Save into table
+    # Save results
     analysis_table["amp_gauss"] = amp_arr
     analysis_table["mu_gauss"] = mu_arr
     analysis_table["sigma_gauss"] = sigma_arr
-    analysis_table["cont_gauss"] = cont_arr
     analysis_table["area_gauss"] = area_arr
     analysis_table["chi2_gauss"] = chi2_arr
-    # optionally, save residuals as object column
-    analysis_table["residuals_gauss"] = residuals_list
+
+    print("INFO: Gaussian fitting completed")
 
     return analysis_table

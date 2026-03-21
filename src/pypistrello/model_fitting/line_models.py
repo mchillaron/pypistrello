@@ -11,9 +11,9 @@
 import numpy as np
 from lmfit import Model
 
-def gaussian_lmfit(x, amp, center, sigma, cont):
-    """Simple Gaussian + p0 continuum model for lmfit."""
-    return amp * np.exp(-0.5 * ((x - center)/sigma)**2) + cont
+def gaussian_lmfit(x, amp, center, sigma):
+    """Single Gaussian (continuum already removed)."""
+    return amp * np.exp(-0.5 * ((x - center)/sigma)**2)
 
 def fit_model_lmfit(x, y, model_func, p0):
     """

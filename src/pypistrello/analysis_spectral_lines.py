@@ -151,7 +151,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         if run_voronoi:
             print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation {RESET}")
 
-            pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters, snr_table=snr_table)
+            pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters, debug_level, snr_table=snr_table)
 
             cube_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting, output_dir_path)
 
@@ -159,7 +159,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
             analysis_table = build_voronoi_table(table_results_fitting, pow)
             spectra = cube_binned   # (n_lambda, n_bins)
 
-            if debug_level >= 1:
+            if debug_level > 1:
                 save_voronoi_bin_spectra_pdf(
                     spectra=cube_binned,
                     wavelength=wavelength_range,
@@ -187,7 +187,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
         print("Data preparation ready for analysis of spectral lines") 
         analysis_table = measure_spectra_properties(spectra,wavelength_range,config_parameters,
-                                                    analysis_table, redshift, line_restframe)
+                                                    analysis_table, redshift, line_restframe, debug_level)
         
         if run_voronoi:
             columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "cont_gauss", "area_gauss", "chi2_gauss"]
