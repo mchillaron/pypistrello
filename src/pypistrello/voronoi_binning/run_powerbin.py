@@ -12,7 +12,7 @@ from powerbin import PowerBin
 import matplotlib.pyplot as plt
 import numpy as np
 
-def run_powerbin(table_results_fitting, config_parameters, snr_table=None):
+def run_powerbin(table_results_fitting, config_parameters, debug_level, snr_table=None):
     """This function uses the package Powerbin: 
     'PowerBin method by Cappellari (2025, MNRAS, 544, 1432)'  
     https://ui.adsabs.harvard.edu/abs/2025MNRAS.544.1432C
@@ -42,8 +42,9 @@ def run_powerbin(table_results_fitting, config_parameters, snr_table=None):
     pow = PowerBin(xy, capacity_spec, target_capacity=target_sn**2, verbose=1)
 
     # The binning is performed on (S/N)^2, but for plotting we use S/N.
-    pow.plot(capacity_scale='sqrt', ylabel='S/N')
-    plt.show(block=True)
+    if debug_level > 1:
+        pow.plot(capacity_scale='sqrt', ylabel='S/N')
+        plt.show(block=True)
 
     bin_num = pow.bin_num                           # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
     bin_capacity = pow.bin_capacity                 # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.

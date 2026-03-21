@@ -7,7 +7,6 @@
 # License-Filename: LICENSE
 #
 
-import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
@@ -18,7 +17,7 @@ def plot_offsets(offsets):
     import matplotlib.pyplot as plt
 
     plt.figure()
-    plt.hist(offsets[~np.isnan(offsets)], bins=50)
+    plt.hist(offsets[~np.isnan(offsets)], bins=100)
     plt.xlabel("Pixel offset")
     plt.ylabel("N")
     plt.title("Offset distribution")
@@ -28,7 +27,8 @@ def crosscorrelate_spectra_unified(
         spectra,
         wavelength,
         config_parameters,
-        analysis_table):
+        analysis_table,
+        debug_level):
     """
     Cross-correlate all spectra against a reference spectrum.
 
@@ -110,7 +110,8 @@ def crosscorrelate_spectra_unified(
         fpeaks[i] = fp
 
     print("INFO: Cross-correlation completed")
-    plot_offsets(offsets)
+    if debug_level >= 1:
+        plot_offsets(offsets)
     
     return offsets, fpeaks
 
