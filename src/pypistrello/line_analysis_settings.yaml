@@ -48,7 +48,15 @@ initial_guesses:                # if auto, default parameters are calculated. Re
   center: auto                  # center : central wavelength of the line (same units as wavelength, e.g. Å)
   sigma: auto                   # sigma  : Gaussian width (standard deviation, same units as wavelength)
 
+parameter_bounds:
+  amp: [null, null]             # null means no limit
+  center: [null, null]          # [lambda1, lambda2]
+  sigma: [null, null]
 
+parameter_vary:
+  amp: true
+  center: true
+  sigma: true
 #-----------------------------------------------------------------------------
 # Settings for plotting outputs after analysis.
 plot_simulated_spectra: False   # Add simulated spectra to the plots if provided.

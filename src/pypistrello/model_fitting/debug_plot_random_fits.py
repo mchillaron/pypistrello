@@ -17,7 +17,9 @@ from .spectrum_fitting import get_model_and_initial_params
 def debug_random_fits(
     spectra,
     wavelength,
+    analysis_table,
     config,
+    offsets,
     n_examples=10
 ):
     """
@@ -49,8 +51,9 @@ def debug_random_fits(
         x = wavelength[mask]
         y = spec_sub[mask]
 
-        model_func, p0 = get_model_and_initial_params(config, x, y)
-        result = fit_model_lmfit(x, y, model_func, p0)
+        #model_func, p0 = get_model_and_initial_params(config, x, y)
+        model_func, p0 = get_model_and_initial_params(config, x, y, wavelength, i, analysis_table)
+        result = fit_model_lmfit(x, y, model_func, p0, config)
 
         # High-resolution grid for smooth plotting
         x_fine = np.linspace(x.min(), x.max(), 1000)

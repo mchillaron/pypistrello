@@ -12,6 +12,21 @@ from .fit_continuum_model import fit_continuum
 from .line_models import gaussian_lmfit
 from .line_models import fit_model_lmfit
 
+def estimate_sigma(x, y):
+    """
+    Estimate sigma from second moment of the line.
+    """
+
+    y = y - np.nanmin(y)
+
+    if np.sum(y) <= 0:
+        return 1.0
+
+    mean = np.sum(x * y) / np.sum(y)
+    var = np.sum(y * (x - mean)**2) / np.sum(y)
+
+    return np.sqrt(var)
+
 def resolve_guess(value, default):
     """
     Resolve initial guess value.
@@ -29,26 +44,45 @@ def resolve_guess(value, default):
         return default
     return value
 
-def get_model_and_initial_params(config, x, y):
+def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table):
     # read the model to fit from the YAML
     model_name = config.get("model", "gaussian").lower()
 
     if model_name == "gaussian":
         model_func = gaussian_lmfit
-
+        print("INFO: The chosen model to fit is SIMPLE GAUSSIAN")
+        
+        print("INFO: Reading initial guesses from configuration YAML file")
         guesses = config.get("initial_guesses", {})
+
+        # better estimation of line center
+        lambda_obs = config["line_restframe"][0] * (1 + config["redshift"])
+        if analysis_table is not None and "offsets" in analysis_table.colnames:
+            offset_pix = analysis_table["offsets"][index]
+            dlambda = np.mean(np.diff(wavelength))
+            mu_auto = lambda_obs + offset_pix * dlambda
+        else:
+            mu_auto = x[np.nanargmax(y)]
+
+        # better estimation of sigma
+        sigma_auto = estimate_sigma(x, y)
+        sigma0 = resolve_guess(guesses.get("sigma"), sigma_auto)
+
+
         p0 = {
             "amp": resolve_guess(guesses.get("amp"), np.nanmax(y)),
-            "center": resolve_guess(guesses.get("center"), x[np.nanargmax(y)]),
-            "sigma": resolve_guess(guesses.get("sigma"), 1.0),
+            #"center": resolve_guess(guesses.get("center"), x[np.nanargmax(y)]),
+            "center": resolve_guess(guesses.get("center"), mu_auto),
+            "sigma": resolve_guess(guesses.get("sigma"), sigma_auto),
+            #"sigma": resolve_guess(guesses.get("sigma"), 1.0),
         }
-
+        print("INFO: initial guess model created before fitting")
     else:
         raise ValueError(f"Model '{model_name}' not implemented")
 
     return model_func, p0
 
-def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, debug=False):
+def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analysis_table=None, debug=False):
     """
     Fit Gaussian to one spectrum using lmfit, with proper continuum handling.
     """
@@ -74,8 +108,9 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, debug=False):
     if len(x) < 5 or np.all(~np.isfinite(y)):
         raise ValueError("Not enough valid data points for fitting the line in 'reg_fitting'")
 
-    model_func, p0 = get_model_and_initial_params(config, x, y)
-    result = fit_model_lmfit(x, y, model_func, p0)
+    model_func, p0 = get_model_and_initial_params(config, x, y, wavelength, index, analysis_table)
+    result = fit_model_lmfit(x, y, model_func, p0, config)
+    print(result.params["sigma"])
 
     if result is None:
         return None
@@ -117,7 +152,8 @@ def fit_gaussians_to_all_spectra_lmfit(
     spectra,
     wavelength,
     analysis_table,
-    config
+    config,
+    offsets,
 ):
     """
     Loop over all spectra and fit Gaussian using lmfit.
@@ -143,6 +179,8 @@ def fit_gaussians_to_all_spectra_lmfit(
             wavelength,
             spec,
             config,
+            index=i,
+            analysis_table=analysis_table,
             debug=False
         )
 
@@ -159,6 +197,7 @@ def fit_gaussians_to_all_spectra_lmfit(
     analysis_table["amp_gauss"] = amp_arr
     analysis_table["mu_gauss"] = mu_arr
     analysis_table["sigma_gauss"] = sigma_arr
+    analysis_table["fwhm"] = 2.355 * sigma_arr
     analysis_table["area_gauss"] = area_arr
     analysis_table["chi2_gauss"] = chi2_arr
 
