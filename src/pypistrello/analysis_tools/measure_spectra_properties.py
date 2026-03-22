@@ -20,7 +20,7 @@ def measure_spectra_properties(
     analysis_table,
     redshift,
     line_restframe,
-    debug_level
+    debug_level=0
 ):
     """
     Apply physical measurements to spectra.
@@ -48,7 +48,6 @@ def measure_spectra_properties(
     analysis_table[:5].pprint()
     analysis_table[-5:].pprint()
 
-    input("press enter to continue")
     if config_parameters["line_model_fit"]:
         print('INFO: Fitting line models with lmfit')
         if debug_level>=1:
@@ -56,7 +55,9 @@ def measure_spectra_properties(
             debug_random_fits(
                 spectra,
                 wavelength_range,
+                analysis_table,
                 config_parameters,
+                offsets,
                 n_examples=10
             )
 
@@ -64,7 +65,8 @@ def measure_spectra_properties(
             spectra,
             wavelength_range,
             analysis_table,
-            config_parameters
+            config_parameters,
+            offsets,
         )
         analysis_table[:5].pprint()
         analysis_table[-5:].pprint()

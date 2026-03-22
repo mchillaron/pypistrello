@@ -110,6 +110,9 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
     else:
         print("INFO: Skipping diagnostic diagram.")
         print(f"{BLUE}{BOLD} Integrating {line_name} line area with trapezoids {RESET}")
+
+        real_cube_measured = False              # creat a flag that will be useful when analysing simulated cubes
+
         table_results_fitting = main_line_fitting(output_dir_path, cube_data_real, wcs_info_real,
                                                   wavelength_range, config_parameters, table_path,
                                                   redshift, line_restframe)
@@ -117,6 +120,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         if simulation_dir_path is not None:
             print(f"{BLUE}{BOLD} Working with simulated cubes{RESET}")
             sim_file = output_dir_path / "simulated_measurements.npy"
+            sim_file_npz = output_dir_path / "simulated_measurements.npz"
 
             if sim_file.exists():
                 load_simulated_data = question_yes_no(
@@ -132,13 +136,12 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
             else:
                 print(f"{GREEN}INFO:{RESET} Looking for simulated data in {simulation_dir_path}")
                 simulation_results = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
-                                                        data_extension,config_parameters,redshift,line_restframe)
+                                                        data_extension, config_parameters, redshift, line_restframe)
 
             print(f"{BLUE}{BOLD} Calculating SNR using simulated measurements{RESET}")
             snr_table = compute_sim_snr(table_results_fitting, simulation_results)
             table_results_fitting["snr"] = snr_table
 
-        
         else:
             print(f"{GREEN}INFO:{RESET} No simulation directory provided. Skipping SNR calculation from simulations.")
             snr_table = None
@@ -153,7 +156,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
             pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters, debug_level, snr_table=snr_table)
 
-            cube_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting, output_dir_path)
+            cube_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting, output_dir_path, debug_level)
 
             # adapt the Table to the summed spectra after voronoi binning
             analysis_table = build_voronoi_table(table_results_fitting, pow)
@@ -175,6 +178,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
             spectra = extract_spectra_from_table(cube_data_real, table_results_fitting)
             analysis_table = table_results_fitting
+            cube_binned = None
             bin_map = None
             cube_voronoi = None
 
@@ -186,17 +190,60 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
 
         print("Data preparation ready for analysis of spectral lines") 
-        analysis_table = measure_spectra_properties(spectra,wavelength_range,config_parameters,
+        analysis_table = measure_spectra_properties(spectra, wavelength_range, config_parameters,
                                                     analysis_table, redshift, line_restframe, debug_level)
+        real_cube_measured = True           # change the flag once the real cube has been analysed
         
+        # Saving the analysis table with information for every spaxel
         if run_voronoi:
-            columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "cont_gauss", "area_gauss", "chi2_gauss"]
-            table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting,analysis_table,columns_to_copy)
-            # Save final unified table
-            table_collapsed.write(table_path, overwrite=True)
-            table_collapsed[:5].pprint()
-            table_collapsed[-5:].pprint()
-            print("INFO: Final unified table saved")
+            columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
+            table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting, analysis_table, columns_to_copy)
+        else:
+            table_collapsed = analysis_table
+        
+        table_collapsed.write(table_path, overwrite=True)
+        table_collapsed[:5].pprint()
+        table_collapsed[-5:].pprint()
+        print("INFO: Final unified table saved")
+
+        # -------------------------
+        # If simulations are provided, the same parameters are measured in every cube and
+        # statistics are saved in final file.
+
+        if simulation_dir_path is not None:
+            print(f"{BLUE}{BOLD} Performing same analysis on simulated cubes {RESET}")
+            if sim_file_npz.exists():
+                print("A .npz file with metadata has been found in the directory")
+                data_sim_npz = np.load(sim_file_npz, allow_pickle=True)
+
+                if "columns" in data_sim_npz:
+                    columns = data_sim_npz["columns"].tolist()
+                    print(f"{BLUE}Columns in simulation file:{RESET}")
+                    for col in columns:
+                        print(f"  - {col}")
+                else:
+                    print(f"{MAGENTA}WARNING:{RESET} No column metadata found in .npz")
+                
+                load_simulated_data = question_yes_no(
+                    "Load simulated measurements from existing .npy file?"
+                )
+                if load_simulated_data:
+                    print(f"{GREEN}INFO:{RESET} Loading simulated measurements from {sim_file}")
+                    simulation_results_props = np.load(sim_file)
+                else:
+                    print(f"{GREEN}INFO:{RESET} Rerunning measurements on simulated cubes in {simulation_dir_path}")
+                    simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
+                                                        data_extension, config_parameters, redshift, line_restframe,
+                                                        real_cube_measured, snr_table=snr_table, pow=pow)
+            else:
+                print("INFO: Creating a new .npy file with all measurements from simulated cubes...")
+                simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
+                                                            data_extension, config_parameters, redshift, line_restframe,
+                                                            real_cube_measured, snr_table=snr_table, pow=pow)
+
+            
+            
+            
     
     
 
