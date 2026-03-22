@@ -12,7 +12,7 @@ from powerbin import PowerBin
 import matplotlib.pyplot as plt
 import numpy as np
 
-def run_powerbin(table_results_fitting, config_parameters, debug_level, snr_table=None):
+def run_powerbin(table_results_fitting, config_parameters, debug_level=0, snr_table=None):
     """This function uses the package Powerbin: 
     'PowerBin method by Cappellari (2025, MNRAS, 544, 1432)'  
     https://ui.adsabs.harvard.edu/abs/2025MNRAS.544.1432C

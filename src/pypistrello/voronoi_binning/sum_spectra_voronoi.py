@@ -21,7 +21,7 @@ def plot_bin_map(bin_map):
     plt.show()
 
 
-def sum_spectra_voronoi(cube_data, table_results_fitting, output_dir_path):
+def sum_spectra_voronoi(cube_data, table_results_fitting, output_dir_path, debug_level=0):
     """
     Combine spectra in a 3D FITS cube according to Voronoi / PowerBin bins.
 
@@ -90,14 +90,16 @@ def sum_spectra_voronoi(cube_data, table_results_fitting, output_dir_path):
 
     print("INFO: Voronoi binning spectra completed")
 
-    plot_bin_map(bin_map)
+    if debug_level >=1:
+        plot_bin_map(bin_map)
 
     print("INFO: Saving Voronoi bin map to FITS file")
-    fits.writeto(
-        output_dir_path / "bin_map.fits",
-        bin_map,
-        overwrite=True
-    )
+    if output_dir_path is not None:
+        fits.writeto(
+            output_dir_path / "bin_map.fits",
+            bin_map,
+            overwrite=True
+        )
 
     return cube_binned, bin_map, cube_voronoi 
 
