@@ -58,4 +58,4 @@ def fit_continuum(wavelength, flux, cont_mask, poly_order):
     cont_fit_func = np.poly1d(coeffs)
     #print(f"The function to fit the continuum is {cont_fit_func}")
     
-    return cont_fit_func, lam_cont, flux_cont
+    return cont_fit_func, coeffs, lam_cont, flux_cont

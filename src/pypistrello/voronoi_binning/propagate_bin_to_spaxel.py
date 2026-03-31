@@ -38,7 +38,7 @@ def propagate_bin_to_spaxel_table(spaxel_table, bin_table, columns_to_copy):
     print(f"INFO: Propagating columns: {columns_to_copy}")
 
     for col in columns_to_copy:
-
+        print("Processing column:", col)
         if col not in bin_table.colnames:
             print(f"WARNING: Column '{col}' not found in bin_table, skipping")
             continue
@@ -46,7 +46,15 @@ def propagate_bin_to_spaxel_table(spaxel_table, bin_table, columns_to_copy):
         values_bin = bin_table[col]   # (N_bins,)
 
         # Allocate output column
-        values_spaxel = np.zeros(len(spaxel_table))
+        #values_spaxel = np.zeros(len(spaxel_table))
+        if col == "bin_cont_coeffs":
+            values_spaxel = np.vstack([
+                values_bin[bin_index_map[b]] for b in bin_id_spaxel
+            ])
+        else:
+            values_spaxel = np.array([
+                values_bin[bin_index_map[b]] for b in bin_id_spaxel
+            ])
 
         for i in range(len(spaxel_table)):
             b = bin_id_spaxel[i]

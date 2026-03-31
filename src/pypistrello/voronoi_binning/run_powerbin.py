@@ -22,14 +22,18 @@ def run_powerbin(table_results_fitting, config_parameters, debug_level=0, snr_ta
     xy = np.column_stack([x, y])
 
     if snr_table is None:
-        print("No S/N table provided, using line_flux_trapz and noise from the fitting results to compute the capacity.")
-        signal = table_results_fitting["line_flux_trapz"]
-        noise = table_results_fitting["noise"]
+        print("No S/N table provided, using area_trapz and noise from the fitting results to compute the capacity.")
+        signal = table_results_fitting["area_trapz"]
+        noise = table_results_fitting["cont_noise"]
         signal_to_noise = signal / noise
     else:
-        print("S/N table provided, using line_flux_trapz and S/N to compute the capacity.")
+        print("S/N table provided, using area_trapz and S/N to compute the capacity.")
         signal_to_noise = snr_table
     
+    signal_to_noise = np.nan_to_num(signal_to_noise, nan=0.0, posinf=0.0, neginf=0.0) # clean Nan, +inf and -inf values
+    n_neg = np.sum(signal_to_noise < 0)
+    print(f"Spaxels with negative SNR: {n_neg}")
+    signal_to_noise[signal_to_noise < 0] = 0.0 # set the negative values to zero.
 
     target_sn = config_parameters["target_sn"]
     additive = True                                         #additive = config_parameters.get("additive", True)

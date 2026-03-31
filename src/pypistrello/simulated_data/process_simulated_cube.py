@@ -8,7 +8,7 @@
 #
 
 from ..file_loading.load_fits_cube import read_fits_cube
-from ..analysis_spectral_lines import main_line_fitting
+from ..analysis_spectral_lines import main_trapz_fitting
 from ..voronoi_binning.extract_spectra_from_table import extract_spectra_from_table
 from ..voronoi_binning.build_voronoi_table import build_voronoi_table
 from ..voronoi_binning.run_powerbin import run_powerbin
@@ -41,7 +41,7 @@ def process_simulated_cube(
     if real_cube_measured:
         print("INFO: Calculating trapezoidal areas for all spectra in this simulated cube")
         # This is an Astropy table with "x", "y", "line_flux_trapz", "noise", "line_snr"
-        table_spaxels = main_line_fitting(
+        table_spaxels = main_trapz_fitting(
             None,  # no output dir needed
             cube_data,
             wcs_info,
@@ -79,7 +79,7 @@ def process_simulated_cube(
 
     else:
         print("INFO: Calculating trapezoidal areas for all spectra in this simulated cube")
-        results_sim_table = main_line_fitting(
+        results_sim_table = main_trapz_fitting(
             None,  # no output dir needed
             cube_data,
             wcs_info,
