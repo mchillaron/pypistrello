@@ -24,7 +24,8 @@ from .file_loading.save_table_fits import save_table_with_wcs_extension
 from .file_loading.yn_question import question_yes_no
 
 from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
-from .area_fitting.main_line_fitting import main_line_fitting
+from .area_fitting.main_trapz_fitting import main_trapz_fitting
+from .area_fitting.area_trapz_spectra_bin import area_trapz_spectra_bin
 from .analysis_tools.measure_spectra_properties import measure_spectra_properties
 
 from .simulated_data.process_simulations import process_simulations
@@ -113,9 +114,12 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
         real_cube_measured = False              # creat a flag that will be useful when analysing simulated cubes
 
-        table_results_fitting = main_line_fitting(output_dir_path, cube_data_real, wcs_info_real,
+        table_results_fitting = main_trapz_fitting(output_dir_path, cube_data_real, wcs_info_real,
                                                   wavelength_range, config_parameters, table_path,
                                                   redshift, line_restframe)
+        
+        table_results_fitting[:5].pprint()
+        table_results_fitting[-5:].pprint()
         
         if simulation_dir_path is not None:
             print(f"{BLUE}{BOLD} Working with simulated cubes{RESET}")
@@ -139,7 +143,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                                                         data_extension, config_parameters, redshift, line_restframe)
 
             print(f"{BLUE}{BOLD} Calculating SNR using simulated measurements{RESET}")
-            snr_table = compute_sim_snr(table_results_fitting, simulation_results)
+            snr_table = compute_sim_snr(table_results_fitting, "area_trapz", simulation_results)
             table_results_fitting["snr"] = snr_table
 
         else:
@@ -173,6 +177,12 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                     grid_size=(5, 5),
                     sort_by_snr=True
                 )
+            
+            analysis_table = area_trapz_spectra_bin(spectra, wavelength_range, config_parameters, 
+                                                analysis_table, redshift, line_restframe, debug_level)
+            
+            #bin_snr_table = compute_sim_snr(analysis_table, "bin_area_trapz", simulation_results)
+            #analysis_table["bin_snr_simulated"] = bin_snr_table
         else:
             print(f"{GREEN}INFO:{RESET} No Voronoi binning")
 
@@ -196,7 +206,9 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         
         # Saving the analysis table with information for every spaxel
         if run_voronoi:
-            columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
+            columns_to_copy = ["bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs", #"bin_snr_simulated",
+                               "velocity","offsets",
+                               "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
             table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting, analysis_table, columns_to_copy)
         else:
             table_collapsed = analysis_table
