@@ -24,7 +24,7 @@ from .plotting import plot_trapz_spectrum
 from .save_trapz_plots_pdf import save_trapz_plots_to_pdf
 from .signal_to_noise import signal_to_noise
 
-def main_line_fitting(output_dir_path, cube_data, wcs_info,
+def main_trapz_fitting(output_dir_path, cube_data, wcs_info,
                       wavelength, config_parameters, 
                       table_parameters_path, redshift, line_restframe):
     
@@ -85,7 +85,7 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
                 cont_mask = apply_excluded_regions(cont_mask, wavelength, excluded_regions)
 
             # Fitting the continuum
-            cont_fit_func, lambda_cont, flux_cont = fit_continuum(
+            cont_fit_func, coeffs, lambda_cont, flux_cont = fit_continuum(
                 wavelength, flux, cont_mask,
                 config_parameters["poly_order_cont"])
 
@@ -95,32 +95,30 @@ def main_line_fitting(output_dir_path, cube_data, wcs_info,
                 window=config_parameters["window_fitting"],
                 region=config_parameters["reg_fitting"])
 
-            line_flux_trapz, lambda_line, flux_line_without_cont = compute_line_flux(
+            area_trapz, lambda_line, flux_line_without_cont = compute_line_flux(
                 wavelength, flux, line_mask, cont_fit_func,)
 
             # SNR (signal-to-noise ratio)
             line_snr, noise = signal_to_noise(wavelength, flux,
                                   cont_mask, cont_fit_func,
-                                  line_mask, line_flux_trapz)
+                                  line_mask, area_trapz)
 
-
-            results_area.append((x_fits, y_fits, line_flux_trapz, noise, line_snr))
-
-            #the plotinput info was here
+            results_area.append((x_fits, y_fits, area_trapz, coeffs, noise, line_snr))
 
     # Convert list of tuples → columns
-    results_area = np.array(results_area)
+    results_area = np.array(results_area, dtype=object)
 
     x_fits = results_area[:, 0].astype(int)
     y_fits = results_area[:, 1].astype(int)
-    line_flux_trapz = results_area[:, 2].astype(float)
-    noise = results_area[:, 3].astype(float)
-    line_snr = results_area[:, 4].astype(float)
+    area_trapz = results_area[:, 2].astype(float)
+    coeffs = np.vstack(results_area[:, 3])  # This is an array of polynomial coefficients, not a numeric column: coeffs = table["cont_coeffs"][i]; poly = np.poly1d(coeffs)
+    noise = results_area[:, 4].astype(float)
+    line_snr = results_area[:, 5].astype(float)
 
     print(f"Writing the line AREA and SNR to FITS table")
     table_results_fitting = Table(
-        [x_fits, y_fits, line_flux_trapz, noise, line_snr],
-        names=("x", "y", "line_flux_trapz", "noise", "line_snr")
+        [x_fits, y_fits, area_trapz, coeffs, noise, line_snr],
+        names=("x", "y", "area_trapz", "cont_coeffs", "cont_noise", "snr_trapz") 
     )
     table_results_fitting.meta["LINE"] = config_parameters["line_name"]
     #table_results_fitting.meta["LINE_CEN"] = line_obs. #Attribute `LINE_CEN` of type <class 'numpy.ndarray'> cannot be added to FITS Header
