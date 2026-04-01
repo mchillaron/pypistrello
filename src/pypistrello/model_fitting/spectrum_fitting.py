@@ -9,7 +9,7 @@
 
 import numpy as np
 from .fit_continuum_model import fit_continuum
-from .line_models import gaussian_lmfit
+from .line_models import gaussian_lmfit, gaussian_area_fixed_lmfit
 from .line_models import fit_model_lmfit
 
 def estimate_sigma(x, y):
@@ -77,6 +77,35 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
             #"sigma": resolve_guess(guesses.get("sigma"), 1.0),
         }
         print("INFO: initial guess model created before fitting")
+
+    elif model_name == "gaussian_area_fixed":
+        model_func = gaussian_area_fixed_lmfit
+        print("INFO: The chosen model to fit is SIMPLE GAUSSIAN WITH FIXED AREA")
+
+        print("INFO: Reading initial guesses from configuration YAML file")
+        guesses = config.get("initial_guesses", {})
+
+        # better estimation of line center
+        lambda_obs = config["line_restframe"][0] * (1 + config["redshift"])
+
+        if analysis_table is not None and "offsets" in analysis_table.colnames:
+            offset_pix = analysis_table["offsets"][index]
+            dlambda = np.mean(np.diff(wavelength))
+            mu_auto = lambda_obs + offset_pix * dlambda
+        else:
+            mu_auto = x[np.nanargmax(y)]
+
+        # better estimation of sigma
+        sigma_auto = estimate_sigma(x, y)
+
+        # Here we used the previuosly measured area
+        area_fixed = analysis_table["bin_area_trapz"][index]
+
+        p0 = {
+            "center": resolve_guess(guesses.get("center"), mu_auto),
+            "sigma": resolve_guess(guesses.get("sigma"), sigma_auto),
+            "area": area_fixed,  # fijo
+        }
     else:
         raise ValueError(f"Model '{model_name}' not implemented")
 
@@ -116,11 +145,17 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
         return None
 
     # Extract results
-    amp = result.params["amp"].value
-    mu = result.params["center"].value
     sigma = result.params["sigma"].value
+    mu = result.params["center"].value
 
-    area = amp * sigma * np.sqrt(2 * np.pi)
+    if "amp" in result.params:
+        amp = result.params["amp"].value
+        area = amp * sigma * np.sqrt(2 * np.pi)
+    else:
+        # obtain amp from area and sigma if using area-fixed model
+        area = result.params["area"].value
+        amp = area / (sigma * np.sqrt(2*np.pi))
+
     chi2 = result.chisqr
     residuals = result.residual
 

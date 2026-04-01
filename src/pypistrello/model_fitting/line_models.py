@@ -15,6 +15,16 @@ def gaussian_lmfit(x, amp, center, sigma):
     """Single Gaussian (continuum already removed)."""
     return amp * np.exp(-0.5 * ((x - center)/sigma)**2)
 
+def gaussian_area_fixed_lmfit(x, center, sigma, area):
+    """
+    SingleGaussian with fixed area.
+
+    amp is derived from area and sigma:
+    amp = area / (sigma * sqrt(2*pi))
+    """
+    amp = area / (sigma * np.sqrt(2 * np.pi))
+    return amp * np.exp(-0.5 * ((x - center) / sigma)**2)
+
 def fit_model_lmfit(x, y, model_func, p0, config):
     """
     Generic lmfit fitting function.
@@ -52,6 +62,10 @@ def fit_model_lmfit(x, y, model_func, p0, config):
             par.vary = vary_flags[name]
         else:
             par.vary = True  # default: vary
+    
+    if "area" in params:
+        params["area"].vary = False  # Ensure area is fixed
+        print("INFO: 'area' parameter is fixed during fitting")
 
     try:
         result = model.fit(y, params, x=x)
