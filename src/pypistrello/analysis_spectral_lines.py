@@ -15,6 +15,7 @@ import numpy as np
 import os
 import re
 import sys
+import time
 
 from .file_loading.load_fits_cube import read_fits_cube
 from .file_loading.load_wavelength_range import load_wavelength_range
@@ -46,7 +47,7 @@ BOLD = "\033[1m"
 RESET   = "\033[0m"
 
 def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path,
-                            simulation_dir_path, debug_level, run_voronoi):
+                            simulation_dir_path, debug_level, run_voronoi, start):
     """Main function to analyze spectral lines from a FITS file and save results to an output directory.
     
     Parameters
@@ -201,7 +202,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
         print("Data preparation ready for analysis of spectral lines") 
         analysis_table = measure_spectra_properties(spectra, wavelength_range, config_parameters,
-                                                    analysis_table, redshift, line_restframe, debug_level)
+                                                    analysis_table, redshift, line_restframe, output_dir_path, real_cube_measured, debug_level)
         real_cube_measured = True           # change the flag once the real cube has been analysed
         
         # Saving the analysis table with information for every spaxel
@@ -252,15 +253,21 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                 simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
                                                             data_extension, config_parameters, redshift, line_restframe,
                                                             real_cube_measured, snr_table=snr_table, pow=pow)
+                
+    print(f"Goodbye!")
+    end = time.perf_counter()
+    elapsed = end - start
+    hours = int(elapsed // 3600)
+    minutes = int((elapsed % 3600) // 60)
+    seconds = elapsed % 60
+    print(f"⏱️ Execution time: {elapsed:.3f} s ({hours:02d}:{minutes:02d}:{seconds:06.3f})")
+    
 
             
-            
-            
-    
-    
 
 
 def main():
+    start = time.perf_counter()
     parser = argparse.ArgumentParser(description='Python Package for Integrating Spectral lines using Trapezoids, Error estimation and Line-features Optimization.')
     parser.add_argument('-F', '--input-file', type=str, required=True, help='FITS datacube filename to work with.')
     parser.add_argument('-ext', '--data-extension', type=int, required=True, help='FITS extension number where data is found (>= 0).')
@@ -386,7 +393,7 @@ def main():
 
 
     analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path, 
-                            simulation_dir_path, debug_level, run_voronoi)
+                            simulation_dir_path, debug_level, run_voronoi, start)
 
 
 if __name__ == "__main__":
