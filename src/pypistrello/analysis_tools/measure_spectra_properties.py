@@ -11,7 +11,7 @@ import astropy.units as u
 from ..area_fitting.crosscorrelation_spectra import crosscorrelate_spectra_unified
 from ..area_fitting.crosscorrelation_spectra import convert_offset_velocity
 from ..model_fitting.spectrum_fitting import fit_gaussians_to_all_spectra_lmfit
-from ..model_fitting.debug_plot_random_fits import debug_random_fits
+from ..model_fitting.debug_plot_random_fits import debug_random_fits, save_all_fits_to_pdf, save_log_spectra_pdf
 
 def measure_spectra_properties(
     spectra,
@@ -20,7 +20,9 @@ def measure_spectra_properties(
     analysis_table,
     redshift,
     line_restframe,
-    debug_level=0
+    output_dir_path,
+    real_cube_measured,
+    debug_level=0,
 ):
     """
     Apply physical measurements to spectra.
@@ -70,5 +72,30 @@ def measure_spectra_properties(
         )
         analysis_table[:5].pprint()
         analysis_table[-5:].pprint()
+
+        if debug_level==2 and not real_cube_measured:
+            print("Saving a PDF with all models and residual for visual inspection")
+            save_all_fits_to_pdf(
+                spectra,
+                wavelength_range,
+                analysis_table,
+                config_parameters,
+                offsets,
+                output_pdf=output_dir_path / "modelfit_residuals_spectra.pdf",
+                ncols=2,
+                nrows=2)
+            
+        #if debug_level>=1:
+        #    save_log_spectra_pdf(
+        #        spectra,
+        #        wavelength_range,
+        #        analysis_table,
+        #        config_parameters,
+        #        offsets,
+        #        output_pdf=output_dir_path / "modelfit_log_spectra.pdf",
+        #        ncols=3,
+        #        nrows=4,
+        #        pedestal=0.1
+        #    )
 
     return analysis_table
