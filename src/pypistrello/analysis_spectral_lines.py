@@ -207,7 +207,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         
         # Saving the analysis table with information for every spaxel
         if run_voronoi:
-            columns_to_copy = ["bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs", #"bin_snr_simulated",
+            columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
                                "velocity","offsets",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
             table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting, analysis_table, columns_to_copy)
