@@ -15,6 +15,7 @@ from ..voronoi_binning.run_powerbin import run_powerbin
 from ..voronoi_binning.sum_spectra_voronoi import sum_spectra_voronoi
 from ..voronoi_binning.propagate_bin_to_spaxel import propagate_bin_to_spaxel_table
 from ..analysis_tools.measure_spectra_properties import measure_spectra_properties
+from ..area_fitting.area_trapz_spectra_bin import area_trapz_spectra_bin
 
 import numpy as np
 
@@ -61,7 +62,8 @@ def process_simulated_cube(
             )
             analysis_table_sim = build_voronoi_table(table_spaxels, pow_sim)
             spectra_sim = cube_binned_sim   # (n_lambda, n_bins)
-
+            analysis_table_sim = area_trapz_spectra_bin(spectra_sim, wavelength_range, config_parameters, 
+                                                analysis_table_sim, redshift, line_restframe)   
         else: # case pow=None
             print("INFO: No Voronoi binning to simulated cube")
             spectra_sim = extract_spectra_from_table(cube_data, table_spaxels)
@@ -69,9 +71,12 @@ def process_simulated_cube(
             pow_sim = None
 
         analysis_table_sim = measure_spectra_properties(spectra_sim, wavelength_range, config_parameters,
-                                                    analysis_table_sim, redshift, line_restframe, real_cube_measured)
+                                                        analysis_table_sim, redshift, line_restframe, real_cube_measured=real_cube_measured)
         if pow_sim is not None:
-            columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
+            #columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
+            columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
+                               "velocity","offsets",
+                               "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
             results_sim_table = propagate_bin_to_spaxel_table(table_spaxels, analysis_table_sim, columns_to_copy)
         else: # case pow_sim=None
             results_sim_table = analysis_table_sim

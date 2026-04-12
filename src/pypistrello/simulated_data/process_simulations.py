@@ -14,6 +14,7 @@ from .process_simulated_cube import process_simulated_cube
 
 GREEN   = "\033[92m"
 RESET   = "\033[0m"
+BOLD = "\033[1m"
 
 def process_simulations(
         simulation_dir,
@@ -32,13 +33,15 @@ def process_simulations(
         if f.suffix.lower() in [".fits", ".fit"]
     )
     print(f"{GREEN}INFO:{RESET} A total number of {len(cube_files)} simulation cubes will be processed")
+    if len(cube_files) == 0:
+        ValueError("The simulations directory does not contain any FITS cube files")
 
     all_measurements_cubes = []
     columns = None
 
     for cube_path in cube_files:
 
-        print(f"{GREEN}INFO:{RESET} Processing simulation {cube_path.name}")
+        print(f"{GREEN}INFO:{RESET} {BOLD}Processing simulation {cube_path.name}{RESET}")
         measurement_sim_cube, col_names = process_simulated_cube(
                 cube_path,
                 wavelength_range,
@@ -50,7 +53,7 @@ def process_simulations(
                 snr_table, 
                 pow)
 
-        print(f"{GREEN}INFO:{RESET} Finished processing simulation {cube_path.name}")
+        print(f"{GREEN}INFO:{RESET} {BOLD}Finished processing simulation {cube_path.name}{RESET}")
         all_measurements_cubes.append(measurement_sim_cube)
         if columns is None:
             columns = col_names

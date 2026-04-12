@@ -20,8 +20,8 @@ def measure_spectra_properties(
     analysis_table,
     redshift,
     line_restframe,
-    output_dir_path,
     real_cube_measured,
+    output_dir_path=None,
     debug_level=0,
 ):
     """
@@ -84,18 +84,5 @@ def measure_spectra_properties(
                 output_pdf=output_dir_path / "modelfit_residuals_spectra.pdf",
                 ncols=2,
                 nrows=2)
-            
-        #if debug_level>=1:
-        #    save_log_spectra_pdf(
-        #        spectra,
-        #        wavelength_range,
-        #        analysis_table,
-        #        config_parameters,
-        #        offsets,
-        #        output_pdf=output_dir_path / "modelfit_log_spectra.pdf",
-        #        ncols=3,
-        #        nrows=4,
-        #        pedestal=0.1
-        #    )
 
     return analysis_table

@@ -182,8 +182,6 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
             analysis_table = area_trapz_spectra_bin(spectra, wavelength_range, config_parameters, 
                                                 analysis_table, redshift, line_restframe, debug_level)
             
-            #bin_snr_table = compute_sim_snr(analysis_table, "bin_area_trapz", simulation_results)
-            #analysis_table["bin_snr_simulated"] = bin_snr_table
         else:
             print(f"{GREEN}INFO:{RESET} No Voronoi binning")
 
@@ -253,6 +251,15 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                 simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
                                                             data_extension, config_parameters, redshift, line_restframe,
                                                             real_cube_measured, snr_table=snr_table, pow=pow)
+
+            if run_voronoi:
+                # Adding to the table a new column called "bin_snr_sim" 
+                bin_snr_table = compute_sim_snr(table_collapsed, "bin_area_trapz", simulation_results_props)
+                if len(table_collapsed) == len(bin_snr_table):
+                    col_index = table_collapsed.colnames.index("bin_snr_trapz") + 1 
+                    table_collapsed.add_column(bin_snr_table, name="bin_snr_sim", index=col_index)
+                    table_collapsed.write(table_path, overwrite=True)
+        
                 
     print(f"Goodbye!")
     end = time.perf_counter()
