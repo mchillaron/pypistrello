@@ -72,7 +72,8 @@ def sum_spectra_voronoi(cube_data, table_results_fitting, output_dir_path, debug
     for i in range(n_bins):
         mask = (bin_map == i)           # 2D mask (i is the bin ID value, we save in the mask the coordinates of all the spectra belonging to the same bin)
         n_pix_bin = np.sum(mask)        # Count number of pixels in this bin
-        print(f"DEBUG: Bin {i}: {n_pix_bin} pixels")
+        if debug_level == 2:
+            print(f"DEBUG: Bin {i}: {n_pix_bin} pixels")
 
         spectra = cube_data[:, mask]    # (n_lambda, N_pix_bin) Extract all the spectra at mask coordinates from the data_cube
         cube_binned[:, i] = np.sum(spectra, axis=1) # add to cube_binned the total spectrum after sum, (n_lambda,)

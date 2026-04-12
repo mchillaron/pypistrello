@@ -65,7 +65,7 @@ def fit_model_lmfit(x, y, model_func, p0, config):
     
     if "area" in params:
         params["area"].vary = False  # Ensure area is fixed
-        print("INFO: 'area' parameter is fixed during fitting")
+        #print("INFO: 'area' parameter is fixed during fitting")
 
     try:
         result = model.fit(y, params, x=x)

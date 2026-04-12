@@ -50,9 +50,11 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
 
     if model_name == "gaussian":
         model_func = gaussian_lmfit
-        print("INFO: The chosen model to fit is SIMPLE GAUSSIAN")
         
-        print("INFO: Reading initial guesses from configuration YAML file")
+        if index == 0: # Only prints for the first spectrum
+            print("INFO: The chosen model to fit is SIMPLE GAUSSIAN") 
+            print("INFO: Reading initial guesses from configuration YAML file")
+        
         guesses = config.get("initial_guesses", {})
 
         # better estimation of line center
@@ -68,7 +70,6 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
         sigma_auto = estimate_sigma(x, y)
         sigma0 = resolve_guess(guesses.get("sigma"), sigma_auto)
 
-
         p0 = {
             "amp": resolve_guess(guesses.get("amp"), np.nanmax(y)),
             #"center": resolve_guess(guesses.get("center"), x[np.nanargmax(y)]),
@@ -80,9 +81,10 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
 
     elif model_name == "gaussian_area_fixed":
         model_func = gaussian_area_fixed_lmfit
-        print("INFO: The chosen model to fit is SIMPLE GAUSSIAN WITH FIXED AREA")
-
-        print("INFO: Reading initial guesses from configuration YAML file")
+        if index == 0: # Only prints for the first spectrum
+            print("INFO: The chosen model to fit is SIMPLE GAUSSIAN WITH FIXED AREA")
+            print("INFO: Reading initial guesses from configuration YAML file")
+        
         guesses = config.get("initial_guesses", {})
 
         # better estimation of line center
@@ -99,7 +101,11 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
         sigma_auto = estimate_sigma(x, y)
 
         # Here we used the previuosly measured area
-        area_fixed = analysis_table["bin_area_trapz"][index]
+        # If 'bin_area_trapz' is present take this column; if not, we take 'area_trapz'
+        if "bin_area_trapz" in analysis_table.colnames:
+            area_fixed = analysis_table["bin_area_trapz"][index]
+        else:
+            area_fixed = analysis_table["area_trapz"][index]
 
         p0 = {
             "center": resolve_guess(guesses.get("center"), mu_auto),
@@ -127,22 +133,38 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
     spectrum_sub = spectrum - continuum
 
     # Select fitting region
-    
     lmin, lmax = config["reg_fitting"]
     mask = (wavelength >= lmin) & (wavelength <= lmax)
 
     x = wavelength[mask]
     y = spectrum_sub[mask]
 
+    # new protection against non-finite values in x and y
+    valid = np.isfinite(x) & np.isfinite(y)
+    x = x[valid]
+    y = y[valid]
+
     if len(x) < 5 or np.all(~np.isfinite(y)):
+        print("INFO: The lengths of arrays x and y are: ",x.shape, y.shape)
+        print("Number of not finite points in y:", np.sum(~np.isfinite(y)))
         raise ValueError("Not enough valid data points for fitting the line in 'reg_fitting'")
 
     model_func, p0 = get_model_and_initial_params(config, x, y, wavelength, index, analysis_table)
     result = fit_model_lmfit(x, y, model_func, p0, config)
-    print(result.params["sigma"])
+    if debug and result is not None:
+        print(result.params["sigma"])
 
     if result is None:
-        return None
+        # fill the dictionary results with NaN values if the fit failed
+        return {
+            "amp": np.nan,
+            "mu": np.nan,
+            "sigma": np.nan,
+            "area": np.nan,
+            "chi2": np.nan,
+            "residuals": np.full_like(y, np.nan)
+        }
+        #return None
 
     # Extract results
     sigma = result.params["sigma"].value
@@ -204,10 +226,6 @@ def fit_gaussians_to_all_spectra_lmfit(
     chi2_arr = np.full(n_spec, np.nan)
 
     for i in range(n_spec):
-
-        if i % 50 == 0:
-            print(f"INFO: Fitting spectrum {i}/{n_spec}")
-
         spec = spectra[:, i]
 
         result = fit_gaussian_spectrum_lmfit(
