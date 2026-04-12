@@ -26,7 +26,7 @@ from .signal_to_noise import signal_to_noise
 
 
 def area_trapz_spectra_bin(spectra, wavelength_range, config_parameters, 
-                        analysis_table, redshift, line_restframe, debug_level):
+                        analysis_table, redshift, line_restframe, debug_level=0):
     
     # Preparing parameters for the fitting process:
     line_obs = np.array(line_restframe) * (1+redshift)
@@ -47,22 +47,34 @@ def area_trapz_spectra_bin(spectra, wavelength_range, config_parameters,
     # dimensions of spectra are (n_lambda, n_bins)
     for bin in tqdm(range(spectra.shape[1]), desc="Integrating spectra (bins)", unit="bin"):
 
-        print("Processing bin", bin+1, "out of", total_spectra)
-        x_bin = analysis_table["x"][bin]
+        x_bin = analysis_table["x"][bin] 
         y_bin = analysis_table["y"][bin]
-        print("The coordinates of the bin are (x, y) =", (x_bin, y_bin))
+
+        if debug_level == 2:
+            print("Processing bin", bin+1, "out of", total_spectra)
+            print("The coordinates of the bin are (x, y) =", (x_bin, y_bin))
 
         spectrum = spectra[:, bin]
         flux = spectrum          # extract one spectrum
-        print(len(spectrum))  # debería dar 7341
+        wave = wavelength.copy()
 
         if np.all(flux == 0):    # Skip empty spectra if needed
             print("INFO: Skipping empty spectrum in bin", {bin+1})
             continue
+        
+        # PROTECTION: Detect non-finite values
+        nonfinite_mask = ~np.isfinite(flux)
+        n_bad = np.sum(nonfinite_mask)
 
+        if n_bad > 0:
+            #print(f"WARNING: Spectrum at bin {bin} has {n_bad} non-finite values")
+            valid_mask = np.isfinite(flux)
+            flux = flux[valid_mask]
+            wave = wave[valid_mask]
+        
         # Create a mask for the continuum:
         cont_mask, left_cont, right_cont = get_region_mask(
-                wavelength,
+                wave,
                 center=line_obs,
                 window=config_parameters["window_continuum"],
                 region=np.array(config_parameters["reg_continuum"]))
@@ -79,24 +91,24 @@ def area_trapz_spectra_bin(spectra, wavelength_range, config_parameters,
             excluded_regions.append(fit_region)
 
         if excluded_regions is not None:
-            cont_mask = apply_excluded_regions(cont_mask, wavelength, excluded_regions)
+            cont_mask = apply_excluded_regions(cont_mask, wave, excluded_regions)
 
         # Fitting the continuum
         cont_fit_func, coeffs, lambda_cont, flux_cont = fit_continuum(
-            wavelength, flux, cont_mask,
+            wave, flux, cont_mask,
             config_parameters["poly_order_cont"])
 
         # Line mask
         line_mask, line_left, line_right = get_region_mask(
-            wavelength, center=line_obs,
+            wave, center=line_obs,
             window=config_parameters["window_fitting"],
             region=config_parameters["reg_fitting"])
 
         area_trapz, lambda_line, flux_line_without_cont = compute_line_flux(
-            wavelength, flux, line_mask, cont_fit_func,)
+            wave, flux, line_mask, cont_fit_func,)
 
         # SNR (signal-to-noise ratio)
-        line_snr, noise = signal_to_noise(wavelength, flux,
+        line_snr, noise = signal_to_noise(wave, flux,
                                 cont_mask, cont_fit_func,
                                 line_mask, area_trapz)
 

@@ -35,15 +35,31 @@ def fit_continuum(wavelength, spectrum, config):
     x = wavelength[mask]
     y = spectrum[mask]
 
-    if len(x) < 5 or np.all(~np.isfinite(y)):
+    valid = np.isfinite(x) & np.isfinite(y)
+    x = x[valid]
+    y = y[valid]
+
+    if len(x) < 5:
         return None
 
     order = config.get("poly_order_cont", 1)
 
     try:
         coeffs = np.polyfit(x, y, order)
+
+        if not np.all(np.isfinite(coeffs)):
+            raise ValueError("Invalid coefficients")
+
         continuum_model = np.poly1d(coeffs)
-        return continuum_model
-    except Exception as e:
-        print(f"WARNING: Continuum fit failed: {e}")
-        return None
+
+    except Exception:
+        # fallback orden 0
+        try:
+            coeffs = np.polyfit(x, y, 0)
+            continuum_model = np.poly1d(coeffs)
+        except Exception:
+            # fallback mediana
+            median_value = np.nanmedian(y)
+            continuum_model = lambda w: np.full_like(w, median_value)
+
+    return continuum_model

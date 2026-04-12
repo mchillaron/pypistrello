@@ -56,6 +56,8 @@ def main_trapz_fitting(output_dir_path, cube_data, wcs_info,
         for x in range(nx):
 
             flux = cube_data[:, y, x]   # extract one spectrum
+            wave = wavelength.copy()
+
             if np.all(flux == 0):       # Skip empty spectra if needed
                 continue
 
@@ -63,9 +65,25 @@ def main_trapz_fitting(output_dir_path, cube_data, wcs_info,
             y_fits = y + 1
             coords = (x_fits, y_fits)
 
+            # PROTECTION: Detect non-finite values
+            nonfinite_mask = ~np.isfinite(flux)
+            n_bad = np.sum(nonfinite_mask)
+
+            if n_bad > 0:
+                #print(f"WARNING: Spectrum at (x={x_fits}, y={y_fits}) has {n_bad} non-finite values")
+                #print("INFO: Applying mask to remove non-finite values")
+                valid_mask = np.isfinite(flux)
+                flux = flux[valid_mask]
+                wave = wave[valid_mask]
+                #print(f"INFO: New spectrum length: {len(flux)}")
+
+            if len(flux) < 5:
+                print(f"WARNING: Too few valid points after cleaning at (x={x_fits}, y={y_fits})")
+                continue
+
             # Create a mask for the continuum
             cont_mask, cont_left, cont_right = get_region_mask(
-                wavelength,
+                wave,
                 center=line_obs,
                 window=config_parameters["window_continuum"],
                 region=np.array(config_parameters["reg_continuum"]))
@@ -82,24 +100,24 @@ def main_trapz_fitting(output_dir_path, cube_data, wcs_info,
                 excluded_regions.append(fit_region)
 
             if excluded_regions is not None:
-                cont_mask = apply_excluded_regions(cont_mask, wavelength, excluded_regions)
+                cont_mask = apply_excluded_regions(cont_mask, wave, excluded_regions)
 
             # Fitting the continuum
             cont_fit_func, coeffs, lambda_cont, flux_cont = fit_continuum(
-                wavelength, flux, cont_mask,
+                wave, flux, cont_mask,
                 config_parameters["poly_order_cont"])
 
             # Line mask
             line_mask, line_left, line_right = get_region_mask(
-                wavelength, center=line_obs,
+                wave, center=line_obs,
                 window=config_parameters["window_fitting"],
                 region=config_parameters["reg_fitting"])
 
             area_trapz, lambda_line, flux_line_without_cont = compute_line_flux(
-                wavelength, flux, line_mask, cont_fit_func,)
+                wave, flux, line_mask, cont_fit_func,)
 
             # SNR (signal-to-noise ratio)
-            line_snr, noise = signal_to_noise(wavelength, flux,
+            line_snr, noise = signal_to_noise(wave, flux,
                                   cont_mask, cont_fit_func,
                                   line_mask, area_trapz)
 
