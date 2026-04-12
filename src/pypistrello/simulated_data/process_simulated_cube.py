@@ -73,8 +73,7 @@ def process_simulated_cube(
         analysis_table_sim = measure_spectra_properties(spectra_sim, wavelength_range, config_parameters,
                                                         analysis_table_sim, redshift, line_restframe, real_cube_measured=real_cube_measured)
         if pow_sim is not None:
-            #columns_to_copy = ["velocity","offsets","amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
-            columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
+            columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",
                                "velocity","offsets",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
             results_sim_table = propagate_bin_to_spaxel_table(table_spaxels, analysis_table_sim, columns_to_copy)
