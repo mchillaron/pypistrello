@@ -7,20 +7,43 @@
 # License-Filename: LICENSE
 #
 
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
 from numina.array.wavecalib.crosscorrelation import periodic_corr1d
 
 def plot_offsets(offsets):
+    offsets = offsets[np.isfinite(offsets)]
 
-    import matplotlib.pyplot as plt
+    median = np.median(offsets)
+    std = np.std(offsets)
+    # centering the histogram
+    mask = (offsets > median - 3*std) & (offsets < median + 3*std)
+    offsets_clipped = offsets[mask]
 
-    plt.figure()
-    plt.hist(offsets[~np.isnan(offsets)], bins=100)
-    plt.xlabel("Pixel offset")
-    plt.ylabel("N")
-    plt.title("Offset distribution")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.hist(offsets_clipped,
+            bins=60,
+            histtype='stepfilled',
+            color='C0',
+            alpha=0.7)
+
+
+    ax.axvline(0, linestyle='--', linewidth=1.5, label='0')
+    ax.axvline(median, linestyle='-', linewidth=1.5, label=f'median={median:.2f}')
+
+    limit = std
+    ax.set_xlim(-limit, limit)
+
+    ax.set_xlabel("Spectra offsets to reference spectrum")
+    ax.set_ylabel("N")
+    ax.set_title("Offset distribution")
+
+    ax.tick_params(direction='in', top=True, right=True)
+    ax.legend()
+    plt.tight_layout()
+
     plt.show()
 
 def crosscorrelate_spectra_unified(
