@@ -61,7 +61,7 @@ def run_powerbin(table_results_fitting, config_parameters, debug_level=0, snr_ta
 
     # Perform the binning. The target is target_sn**2 to match the capacity definition.
     pow = PowerBin(xy, capacity_spec, target_capacity=target_sn**2, verbose=1)
-    print(sn_values)
+    
     # The binning is performed on (S/N)^2, but for plotting we use S/N.
     if debug_level > 1:
         pow.plot(capacity_scale='sqrt', ylabel='S/N')
