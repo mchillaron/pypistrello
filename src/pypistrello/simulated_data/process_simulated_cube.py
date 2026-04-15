@@ -41,7 +41,7 @@ def process_simulated_cube(
 
     if real_cube_measured:
         print("INFO: Calculating trapezoidal areas for all spectra in this simulated cube")
-        # This is an Astropy table with "x", "y", "line_flux_trapz", "noise", "line_snr"
+        # This is an Astropy table with "x", "y", "area_trapz", "cont_coeffs", "cont_noise", "snr_trapz"
         table_spaxels = main_trapz_fitting(
             None,  # no output dir needed
             cube_data,
@@ -55,24 +55,32 @@ def process_simulated_cube(
         
         # check if voronoi has been carried out in the original cube
         if pow is not None:
-            print("INFO: Applying Voronoi binning to simulated cube")
-            pow_sim, table_spaxels = run_powerbin(table_spaxels, config_parameters, snr_table=snr_table)
+            print("INFO: Applying the original Voronoi binning to simulated cube")
+            bin_num = pow.bin_num                           # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
+            bin_capacity = pow.bin_capacity                 # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.
+            print("There is a total number of bins of", np.max(bin_num))
+
+            table_spaxels["bin_id"] = bin_num               # These are all original cube values
+            table_spaxels["bin_capacity"] = bin_capacity[bin_num]
+            table_spaxels["bin_snr"] = np.sqrt(bin_capacity[bin_num]) # this is the SNR of the original spectrum
+            
+            #pow_sim, table_spaxels = run_powerbin(table_spaxels, config_parameters, snr_table=snr_table)
             cube_binned_sim, bin_map_sim, cube_voronoi_sim = sum_spectra_voronoi(
                 cube_data, table_spaxels, output_dir_path=None
             )
-            analysis_table_sim = build_voronoi_table(table_spaxels, pow_sim)
+            analysis_table_sim = build_voronoi_table(table_spaxels, pow) # using the same pow from the original cube
             spectra_sim = cube_binned_sim   # (n_lambda, n_bins)
             analysis_table_sim = area_trapz_spectra_bin(spectra_sim, wavelength_range, config_parameters, 
                                                 analysis_table_sim, redshift, line_restframe)   
-        else: # case pow=None
+        else:
             print("INFO: No Voronoi binning to simulated cube")
             spectra_sim = extract_spectra_from_table(cube_data, table_spaxels)
             analysis_table_sim = table_spaxels
-            pow_sim = None
+            #pow_sim = None
 
         analysis_table_sim = measure_spectra_properties(spectra_sim, wavelength_range, config_parameters,
                                                         analysis_table_sim, redshift, line_restframe, real_cube_measured=real_cube_measured)
-        if pow_sim is not None:
+        if pow is not None:
             columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",
                                "velocity","offsets",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
