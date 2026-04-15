@@ -7,6 +7,7 @@
 # License-Filename: LICENSE
 #
 
+from astropy.io import fits
 from pathlib import Path
 
 import argparse
@@ -144,7 +145,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                                                         data_extension, config_parameters, redshift, line_restframe)
 
             print(f"{BLUE}{BOLD} Calculating SNR using simulated measurements{RESET}")
-            snr_table = compute_sim_snr(table_results_fitting, "area_trapz", simulation_results)
+            snr_table = compute_sim_snr(table_results_fitting, "area_trapz", simulation_results, config_parameters, debug_level=debug_level)
             table_results_fitting["snr"] = snr_table
 
         else:
@@ -162,6 +163,8 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
             pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters, debug_level, snr_table=snr_table)
 
             cube_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting, output_dir_path, debug_level)
+            hdu = fits.PrimaryHDU(cube_binned)
+            hdu.writeto(output_dir_path / "cube_binned.fits", overwrite=True)
 
             # adapt the Table to the summed spectra after voronoi binning
             analysis_table = build_voronoi_table(table_results_fitting, pow)
@@ -254,7 +257,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
             if run_voronoi:
                 # Adding to the table a new column called "bin_snr_sim" 
-                bin_snr_table = compute_sim_snr(table_collapsed, "bin_area_trapz", simulation_results_props)
+                bin_snr_table = compute_sim_snr(table_collapsed, "bin_area_trapz", simulation_results_props, config_parameters, debug_level=debug_level)
                 if len(table_collapsed) == len(bin_snr_table):
                     col_index = table_collapsed.colnames.index("bin_snr_trapz") + 1 
                     table_collapsed.add_column(bin_snr_table, name="bin_snr_sim", index=col_index)
