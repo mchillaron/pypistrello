@@ -25,26 +25,43 @@ def run_powerbin(table_results_fitting, config_parameters, debug_level=0, snr_ta
         print("No S/N table provided, using area_trapz and noise from the fitting results to compute the capacity.")
         signal = table_results_fitting["area_trapz"]
         noise = table_results_fitting["cont_noise"]
-        signal_to_noise = signal / noise
+
+        n_signal_neg = np.sum(signal_to_noise < 0)
+        signal[signal < 0] = 0.0
+        print(f"Spaxels with negative signal: {n_signal_neg}")
+        
     else:
         print("S/N table provided, using area_trapz and S/N to compute the capacity.")
-        signal_to_noise = snr_table
-    
-    signal_to_noise = np.nan_to_num(signal_to_noise, nan=0.0, posinf=0.0, neginf=0.0) # clean Nan, +inf and -inf values
-    n_neg = np.sum(signal_to_noise < 0)
-    print(f"Spaxels with negative SNR: {n_neg}")
-    signal_to_noise[signal_to_noise < 0] = 0.0 # set the negative values to zero.
+        signal = table_results_fitting["area_trapz"]
+        signal_to_noise = snr_table # In this case we obtained the noise from simulations
+        noise = signal / signal_to_noise
+
+        n_signal_neg = np.sum(signal_to_noise < 0)
+        signal[signal < 0] = 0.0
+        print(f"Spaxels with negative signal: {n_signal_neg}")
+        print(signal)
+        print(noise)
 
     target_sn = config_parameters["target_sn"]
-    additive = True                                         #additive = config_parameters.get("additive", True)
+    additive = config_parameters.get("additive", True)
 
     if additive:
+        print("Computing capacity as addittive")
         # ADDITIVE CASE: (S/N)^2 is additive when noise is Poissonian.
+        signal_to_noise = signal / noise
         capacity_spec = signal_to_noise**2
+    else:
+        # NON-ADDITIVE CASE: (np.sum(signal) / np.sqrt(np.sum(noise**2)))^2 This is the standard formula for uncorrelated noise
+        print("Computing capacity as non addittive")
+        sn_values = []
+        def capacity_spec(index):
+            sn = np.sum(signal[index]) / np.sqrt(np.sum(noise[index]**2))
+            sn_values.append(sn)
+            return sn**2   
 
     # Perform the binning. The target is target_sn**2 to match the capacity definition.
     pow = PowerBin(xy, capacity_spec, target_capacity=target_sn**2, verbose=1)
-
+    print(sn_values)
     # The binning is performed on (S/N)^2, but for plotting we use S/N.
     if debug_level > 1:
         pow.plot(capacity_scale='sqrt', ylabel='S/N')

@@ -8,12 +8,14 @@
 #
 
 from astropy.io import fits
+from cmap import Colormap
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 def plot_bin_map(bin_map):
     plt.figure(figsize=(6, 5))
-    plt.imshow(bin_map, origin="lower")
+    plt.imshow(bin_map, origin="lower", cmap='terrain')
     plt.colorbar(label="Bin ID")
     plt.title("Voronoi Bin Map")
     plt.xlabel("X")
