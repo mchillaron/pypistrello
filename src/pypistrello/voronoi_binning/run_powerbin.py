@@ -26,6 +26,7 @@ def run_powerbin(table_results_fitting, config_parameters, debug_level=0, snr_ta
         signal = table_results_fitting["area_trapz"]
         noise = table_results_fitting["cont_noise"]
 
+        signal_to_noise = signal / noise
         n_signal_neg = np.sum(signal_to_noise < 0)
         signal[signal < 0] = 0.0
         print(f"Spaxels with negative signal: {n_signal_neg}")
