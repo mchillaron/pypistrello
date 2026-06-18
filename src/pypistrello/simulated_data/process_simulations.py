@@ -62,7 +62,6 @@ def process_simulations(
 
 
     all_measurements_cubes = np.stack(all_measurements_cubes)
-    #print(all_measurements_areatrapz_cubes)
 
     print(f"{GREEN}INFO:{RESET} All simulations processed.")
 
