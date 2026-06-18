@@ -78,7 +78,8 @@ def sum_spectra_voronoi(cube_data, table_results_fitting, output_dir_path, debug
             print(f"DEBUG: Bin {i}: {n_pix_bin} pixels")
 
         spectra = cube_data[:, mask]    # (n_lambda, N_pix_bin) Extract all the spectra at mask coordinates from the data_cube
-        cube_binned[:, i] = np.sum(spectra, axis=1) # add to cube_binned the total spectrum after sum, (n_lambda,)
+        spectra_sum = np.sum(spectra, axis=1) 
+        cube_binned[:, i] = spectra_sum / n_pix_bin  # add to cube_binned the total spectrum after sum (n_lambda,) divided by the number of pixels in the bin (n_pix_bin) to get the average spectrum per bin
 
 
     print("INFO: Reconstruction of a data cube with the same dimensions as the original with Voronoi bins spectra")
