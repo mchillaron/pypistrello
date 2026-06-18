@@ -210,7 +210,9 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         if run_voronoi:
             columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
                                "velocity","offsets",
-                               "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss"]
+                               "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
+                               "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total"]
+            
             table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting, analysis_table, columns_to_copy)
         else:
             table_collapsed = analysis_table
@@ -256,7 +258,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                                                             real_cube_measured, snr_table=snr_table, pow=pow)
 
             if run_voronoi:
-                # Adding to the table a new column called "bin_snr_sim" 
+                # Adding to every table a new column called "bin_snr_sim" 
                 bin_snr_table = compute_sim_snr(table_collapsed, "bin_area_trapz", simulation_results_props, config_parameters, debug_level=debug_level)
                 if len(table_collapsed) == len(bin_snr_table):
                     col_index = table_collapsed.colnames.index("bin_snr_trapz") + 1 

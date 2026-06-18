@@ -25,6 +25,31 @@ def gaussian_area_fixed_lmfit(x, center, sigma, area):
     amp = area / (sigma * np.sqrt(2 * np.pi))
     return amp * np.exp(-0.5 * ((x - center) / sigma)**2)
 
+def triplet_HaNII_lmfit(x, area, amp_nii6583, center, sigma):
+    """
+    Halpha + [NII]6548 + [NII]6583
+
+    Constraints:
+    F6583/F6548 = 3
+    Same sigma for all lines
+    Same velocity shift
+    """
+
+    HA_REST = 6562.80
+    NII6548_REST = 6548.05
+    NII6583_REST = 6583.45
+
+    center_6548 = center - (HA_REST - NII6548_REST)
+    center_6583 = center + (NII6583_REST - HA_REST)
+
+    amp_ha = area / (sigma * np.sqrt(2*np.pi))
+
+    g_ha = amp_ha * np.exp(-0.5*((x-center)/sigma)**2)
+    g_6583 = amp_nii6583 * np.exp(-0.5*((x-center_6583)/sigma)**2)
+    g_6548 = (amp_nii6583/3.0) * np.exp(-0.5*((x-center_6548)/sigma)**2)
+    
+    return g_ha + g_6548 + g_6583
+
 def fit_model_lmfit(x, y, model_func, p0, config):
     """
     Generic lmfit fitting function.
@@ -65,7 +90,7 @@ def fit_model_lmfit(x, y, model_func, p0, config):
     
     if "area" in params:
         params["area"].vary = False  # Ensure area is fixed
-        #print("INFO: 'area' parameter is fixed during fitting")
+        print("INFO: area fixed in triplets for Halpha line exclusively")
 
     try:
         result = model.fit(y, params, x=x)

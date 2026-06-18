@@ -25,7 +25,12 @@ def debug_random_fits(
     n_examples=10
 ):
     """
-    Plot random spectra with continuum + Gaussian fit for debugging.
+    Plot random spectra with continuum + model fit for debugging.
+
+    Supports:
+      - gaussian
+      - gaussian_area_fixed
+      - triplet_hanii
     """
 
     print(f"INFO: Generating {n_examples} debug plots")
@@ -34,6 +39,11 @@ def debug_random_fits(
 
     zoom = config.get("zoom_plot", [wavelength.min(), wavelength.max()])
     ypad = config.get("y_padding", 0.1)
+
+    model_name = config.get(
+        "model_to_fit",
+        config.get("model", "gaussian")
+    ).lower()
 
     for i in idx_random:
 
@@ -47,13 +57,21 @@ def debug_random_fits(
         spec_sub = spec - continuum
 
         # Fit line
-        lmin, lmax = config["reg_fitting"]
-        mask = (wavelength >= lmin) & (wavelength <= lmax)
+        model_name = config.get("model", "gaussian").lower()
 
+        if model_name == "triplet_hanii":
+            lmin, lmax = config.get("reg_fitting_triplet", config["reg_fitting"])
+        else:
+            lmin, lmax = config["reg_fitting"]
+
+        mask = (wavelength >= lmin) & (wavelength <= lmax)
         x = wavelength[mask]
         y = spec_sub[mask]
 
-        #model_func, p0 = get_model_and_initial_params(config, x, y)
+        valid = np.isfinite(x) & np.isfinite(y)
+        x = x[valid]
+        y = y[valid]
+
         model_func, p0 = get_model_and_initial_params(config, x, y, wavelength, i, analysis_table)
         result = fit_model_lmfit(x, y, model_func, p0, config)
 
@@ -61,19 +79,39 @@ def debug_random_fits(
             continue
 
         # High-resolution grid for smooth plotting
-        x_fine = np.linspace(x.min(), x.max(), 1000)
+        if model_name == "triplet_hanii":
+
+            center = result.params["center"].value
+            sigma = result.params["sigma"].value
+
+            HA_REST = 6562.80
+            NII6548_REST = 6548.05
+            NII6583_REST = 6583.45
+
+            center_6548 = (center- (HA_REST - NII6548_REST))
+
+            center_6583 = (center+ (NII6583_REST - HA_REST))
+
+            x_plot_min = center_6548 - 5 * sigma
+            x_plot_max = center_6583 + 5 * sigma
+
+            x_fine = np.linspace(x_plot_min, x_plot_max, 2000)
+
+        else:
+            x_fine = np.linspace(x.min(), x.max(), 1000)
+
         y_fine = result.eval(x=x_fine)               # Evaluate best-fit model on fine grid
 
         # Residuals in the fitting region:
         model_full = np.zeros_like(wavelength)
-        model_full[mask] = result.eval(x=wavelength[mask])
+        model_mask = result.eval(x=wavelength[mask])
+        model_full[mask] = model_mask
         spec_clean = spec_sub - model_full
 
         residuals = y - result.eval(x=x)
         rms = np.sqrt(np.mean(residuals**2))
 
         # Plot
-        #plt.figure(figsize=(8, 5))
         fig, (ax1, ax2) = plt.subplots(
             2, 1,
             figsize=(8, 6),
@@ -88,12 +126,49 @@ def debug_random_fits(
         ax1.plot(
             x_fine,
             y_fine + continuum_model(x_fine),
-            alpha=0.7,
-            label="Gaussian fit"
+            linewidth=2,
+            alpha=0.8,
+            label="Model fit"
         )
 
-        ax1.set_xlim(zoom)
+        if model_name == "triplet_hanii":
 
+            area_ha = result.params["area"].value
+            amp_ha = area_ha / (sigma * np.sqrt(2*np.pi))
+            amp_nii6583 = result.params["amp_nii6583"].value
+
+            g_ha = amp_ha * np.exp(-0.5 * ((x_fine - center)/ sigma)**2)
+            g_6583 = amp_nii6583 * np.exp(-0.5 * ((x_fine - center_6583)/ sigma)**2)
+            g_6548 = (amp_nii6583/3.0) * np.exp(-0.5 * ((x_fine - center_6548)/ sigma)**2)
+
+            cont_fine = continuum_model(x_fine)
+
+            ax1.plot(
+                x_fine,
+                g_ha + cont_fine,
+                "--",
+                alpha=0.8,
+                label="Hα"
+            )
+
+            ax1.plot(
+                x_fine,
+                g_6548 + cont_fine,
+                "--",
+                alpha=0.8,
+                label="[NII]6548"
+            )
+
+            ax1.plot(
+                x_fine,
+                g_6583 + cont_fine,
+                "--",
+                alpha=0.8,
+                label="[NII]6583"
+            )
+
+        ax1.set_xlim(zoom)
+        
         ymin = np.nanmin(spec[(wavelength >= zoom[0]) & (wavelength <= zoom[1])])
         ymax = np.nanmax(spec[(wavelength >= zoom[0]) & (wavelength <= zoom[1])])
         dy = ymax - ymin
@@ -112,14 +187,14 @@ def debug_random_fits(
             wavelength,
             spec_clean,
             alpha=0.4,
-            label="Spectrum - model (full)"
+            label="Spectrum - model"
         )
 
         # Residuals in fitting region
         ax2.plot(
             x,
             residuals,
-            linewidth=2,
+            linewidth=1.7,
             color="hotpink",
             label="Fit residuals"
         )

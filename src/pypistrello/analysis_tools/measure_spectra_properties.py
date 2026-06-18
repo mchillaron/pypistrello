@@ -73,7 +73,7 @@ def measure_spectra_properties(
         analysis_table[:5].pprint()
         analysis_table[-5:].pprint()
 
-        if debug_level==2 and not real_cube_measured:
+        if debug_level==3 and not real_cube_measured:
             print("Saving a PDF with all models and residual for visual inspection")
             save_all_fits_to_pdf(
                 spectra,
