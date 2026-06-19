@@ -40,8 +40,6 @@ def run_powerbin(table_results_fitting, config_parameters, debug_level=0, snr_ta
         n_signal_neg = np.sum(signal_to_noise < 0)
         signal[signal < 0] = 0.0
         print(f"Spaxels with negative signal: {n_signal_neg}")
-        print(signal)
-        print(noise)
 
     target_sn = config_parameters["target_sn"]
     additive = config_parameters.get("additive", True)
@@ -70,12 +68,15 @@ def run_powerbin(table_results_fitting, config_parameters, debug_level=0, snr_ta
 
     bin_num = pow.bin_num                           # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
     bin_capacity = pow.bin_capacity                 # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.
+    bin_center = pow.xybin                          # shape is (M, 2) where M is the number of bins, and each row is the center coordinates of that bin.
     print("There is a total number of bins of", np.max(bin_num))
 
     table_results_fitting["bin_id"] = bin_num
+    table_results_fitting["bin_center"] = bin_center[bin_num]
     table_results_fitting["bin_capacity"] = bin_capacity[bin_num]
     table_results_fitting["bin_snr"] = np.sqrt(bin_capacity[bin_num])
-    print("Columns 'bin_id', 'bin_capacity' and 'bin_snr' have been added to the table with the results of the Voronoi binning")
+    
+    print("Columns 'bin_id', 'bin_center', 'bin_capacity' and 'bin_snr' have been added to the table with the results of the Voronoi binning")
     print("End of PowerBin Voronoi binning")
 
     return pow, table_results_fitting
