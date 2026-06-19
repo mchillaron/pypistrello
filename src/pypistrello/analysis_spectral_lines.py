@@ -217,7 +217,11 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         else:
             table_collapsed = analysis_table
         
-        table_collapsed.write(table_path, overwrite=True)
+        save_table_with_wcs_extension(
+            table_collapsed,
+            table_path,
+            wcs_info=wcs_info_real
+        )
         table_collapsed[:5].pprint()
         table_collapsed[-5:].pprint()
         print("INFO: Final unified table saved")
