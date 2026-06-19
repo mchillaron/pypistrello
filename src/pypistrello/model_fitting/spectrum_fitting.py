@@ -267,7 +267,6 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
         plt.show()
 
     if config["model"].lower() == "triplet_hanii":
-        print(f"En result está ha:{amp_ha}")
         return {
             "amp_ha": amp_ha,
             "amp_nii6548": amp_nii6548,
