@@ -19,6 +19,7 @@ def fit_continuum(wavelength, spectrum, config):
 
     excl = config["reg_excluded"]
     fit_region = config["reg_fitting"]
+    fit_region_gaussians = config["reg_fitting_gaussians"]
 
     # Apply exclusion regions
     excluded_regions = []
@@ -27,6 +28,9 @@ def fit_continuum(wavelength, spectrum, config):
 
     if fit_region is not None:
         excluded_regions.append(fit_region)
+
+    if fit_region_gaussians is not None:
+        excluded_regions.append(fit_region_gaussians)
 
     if excluded_regions is not None:
         for reg in excluded_regions:
