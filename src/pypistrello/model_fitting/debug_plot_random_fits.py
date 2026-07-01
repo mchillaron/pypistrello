@@ -60,7 +60,9 @@ def debug_random_fits(
         model_name = config.get("model", "gaussian").lower()
 
         if model_name == "triplet_hanii":
-            lmin, lmax = config.get("reg_fitting_triplet", config["reg_fitting"])
+            lmin, lmax = config.get("reg_fitting_gaussians", config["reg_fitting"])
+        elif model_name == "double_gaussian":
+            lmin, lmax = config.get("reg_fitting_gaussians", config["reg_fitting"])
         else:
             lmin, lmax = config["reg_fitting"]
 
@@ -96,6 +98,15 @@ def debug_random_fits(
             x_plot_max = center_6583 + 5 * sigma
 
             x_fine = np.linspace(x_plot_min, x_plot_max, 2000)
+
+        elif model_name=="double_gaussian":
+
+            lmin_plot, lmax_plot = config.get(
+                "reg_fitting_gaussians",
+                config["reg_fitting"]
+            )
+
+            x_fine = np.linspace(lmin_plot, lmax_plot, 2000)
 
         else:
             x_fine = np.linspace(x.min(), x.max(), 1000)
@@ -166,7 +177,45 @@ def debug_random_fits(
                 alpha=0.8,
                 label="[NII]6583"
             )
+        
+        elif model_name=="double_gaussian":
 
+            sigma=result.params["sigma"].value
+            center=result.params["center"].value
+            delta=result.params["delta_lambda"].value
+
+            center2=center+delta
+            print(delta)
+            print(center2)
+
+            area1=result.params["area"].value
+            print(area1)
+            amp1=area1/(sigma*np.sqrt(2*np.pi))
+            print(amp1)
+            amp2=result.params["amp2"].value
+            print(amp2)
+
+            g1=amp1*np.exp(-0.5*((x_fine-center)/sigma)**2)
+            g2=amp2*np.exp(-0.5*((x_fine-center2)/sigma)**2)
+
+            cont=continuum_model(x_fine)
+
+            ax1.plot(
+                x_fine,
+                g1+cont,
+                "--",
+                lw=1.8,
+                label="Line 1"
+            )
+
+            ax1.plot(
+                x_fine,
+                g2+cont,
+                "--",
+                lw=1.8,
+                label="Line 2"
+            )
+        
         ax1.set_xlim(zoom)
         
         ymin = np.nanmin(spec[(wavelength >= zoom[0]) & (wavelength <= zoom[1])])
@@ -218,6 +267,11 @@ def debug_random_fits(
 
         plt.tight_layout()
         plt.show()
+
+
+
+
+
 
 
 from matplotlib.backends.backend_pdf import PdfPages
