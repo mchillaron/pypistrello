@@ -9,7 +9,7 @@
 
 import numpy as np
 from .fit_continuum_model import fit_continuum
-from .line_models import gaussian_lmfit, gaussian_area_fixed_lmfit, triplet_HaNII_lmfit
+from .line_models import gaussian_lmfit, gaussian_area_fixed_lmfit, double_gaussian_lmfit, triplet_HaNII_lmfit
 from .line_models import fit_model_lmfit
 
 def estimate_sigma(x, y):
@@ -17,13 +17,13 @@ def estimate_sigma(x, y):
     Estimate sigma from second moment of the line.
     """
 
-    y = y - np.nanmin(y)
+    y = y - np.nanmin(y)    # remove negative values
 
     if np.sum(y) <= 0:
         return 1.0
 
-    mean = np.sum(x * y) / np.sum(y)
-    var = np.sum(y * (x - mean)**2) / np.sum(y)
+    mean = np.sum(x * y) / np.sum(y)                # flux mass centroid
+    var = np.sum(y * (x - mean)**2) / np.sum(y)     # pondered variance
 
     return np.sqrt(var)
 
@@ -72,10 +72,8 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
 
         p0 = {
             "amp": resolve_guess(guesses.get("amp"), np.nanmax(y)),
-            #"center": resolve_guess(guesses.get("center"), x[np.nanargmax(y)]),
             "center": resolve_guess(guesses.get("center"), mu_auto),
             "sigma": resolve_guess(guesses.get("sigma"), sigma_auto),
-            #"sigma": resolve_guess(guesses.get("sigma"), 1.0),
         }
         print("INFO: initial guess model created before fitting")
 
@@ -113,6 +111,66 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
             "area": area_fixed,  # fixed area from trapezoidal integration
         }
 
+    elif model_name == "double_gaussian":
+
+        model_func = double_gaussian_lmfit
+        if index == 0:
+            print("INFO: Double Gaussian model selected")
+
+        guesses = config.get("initial_guesses", {})
+
+        lambda1 = config["line_fitting_restframe"][0]
+        lambda2 = config["line_fitting_restframe"][1]
+        print("INFO: Rest-frame wavelengths for double Gaussian fitting:", lambda1, lambda2)
+
+        delta_lambda = lambda2 - lambda1            #separation between the two lines in rest-frame
+
+        lambda_obs = lambda1 * (1 + config["redshift"])
+        #lambda_obs2 = lambda2 * (1 + config["redshift"])
+        #midpoint = 0.5 * (lambda_obs + lambda_obs2)
+
+        if analysis_table is not None and "offsets" in analysis_table.colnames:
+            offset_pix = analysis_table["offsets"][index]
+            dlambda = np.mean(np.diff(wavelength))
+            mu_auto = lambda_obs + offset_pix*dlambda
+        else:
+            mu_auto = x[np.nanargmax(y)]
+
+        #mask_sigma = np.abs(x-mu_auto) < 3
+
+        mask_sigma = (
+            (x > lambda_obs - 3.0) &
+            (x < lambda_obs + 3.0)
+        )
+
+        if np.sum(mask_sigma) > 5:
+            sigma_auto = estimate_sigma(
+                x[mask_sigma],
+                y[mask_sigma]
+            )
+        else:
+            sigma_auto = estimate_sigma(x, y)
+
+        sigma_auto = estimate_sigma(
+            x[mask_sigma],
+            y[mask_sigma]
+        )
+
+        #sigma_auto = estimate_sigma(x, y)
+
+        if "bin_area_trapz" in analysis_table.colnames:
+            area_fixed = analysis_table["bin_area_trapz"][index]
+        else:
+            area_fixed = analysis_table["area_trapz"][index]
+
+        p0 = {
+            "center": resolve_guess(guesses.get("center"), mu_auto),
+            "sigma": resolve_guess(guesses.get("sigma"), sigma_auto),
+            "area": area_fixed,
+            "amp2": resolve_guess(guesses.get("amp2"),np.nanmax(y)),
+            "delta_lambda": delta_lambda
+        }
+
     elif model_name == "triplet_hanii":
 
         model_func = triplet_HaNII_lmfit
@@ -145,7 +203,7 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
             "center": resolve_guess(guesses.get("center"),mu_auto),
             "sigma": resolve_guess(guesses.get("sigma"),sigma_auto),
             "area": area_fixed,
-            "amp_nii6583": resolve_guess(guesses.get("amp_nii6583"), np.nanmax(y)/40), #maximum divided by 40 to start fitting from a low amplitude for NII, helps convergence
+            "amp_nii6583": resolve_guess(guesses.get("amp"), np.nanmax(y)/40), #maximum divided by 40 to start fitting from a low amplitude for NII, helps convergence
         }
 
     else:
@@ -173,7 +231,11 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
     model_name = config.get("model", "gaussian").lower()
 
     if model_name == "triplet_hanii":
-        lmin, lmax = config.get("reg_fitting_triplet", config["reg_fitting"])
+        lmin, lmax = config.get("reg_fitting_gaussians", config["reg_fitting"])
+
+    elif model_name=="double_gaussian":
+        lmin,lmax=config.get("reg_fitting_gaussians", config["reg_fitting"])
+
     else:
         lmin, lmax = config["reg_fitting"]
         
@@ -212,6 +274,22 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
                 "chi2": np.nan,
                 "residuals": np.full_like(y, np.nan)
             }
+        
+        elif model_name == "double_gaussian":
+            return {
+                "amp1": np.nan,
+                "amp2": np.nan,
+                "mu1": np.nan,
+                "mu2": np.nan,
+                "sigma": np.nan,
+                "area1": np.nan,
+                "area2": np.nan,
+                "area_total": np.nan,
+                "delta_lambda": np.nan,
+                "chi2": np.nan,
+                "residuals": np.full_like(y, np.nan)
+            }
+    
         else:
             return {
                 "amp": np.nan,
@@ -238,6 +316,18 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
         area_nii6548 = amp_nii6548 * sigma * np.sqrt(2*np.pi)
         area_nii6583 = amp_nii6583 * sigma * np.sqrt(2*np.pi)
         area_total = area_ha + area_nii6548 + area_nii6583
+
+    elif config["model"].lower() == "double_gaussian":
+        sigma = result.params["sigma"].value
+        mu1 = result.params["center"].value
+        delta = result.params["delta_lambda"].value
+        mu2 = mu1 + delta
+        area1 = result.params["area"].value
+        amp1 = area1/(sigma*np.sqrt(2*np.pi))
+        amp2 = result.params["amp2"].value
+        area2 = amp2*sigma*np.sqrt(2*np.pi)
+        area_total = area1 + area2
+
     else:
         sigma = result.params["sigma"].value
         mu = result.params["center"].value
@@ -280,6 +370,20 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
             "chi2": chi2,
             "residuals": residuals
         } 
+    elif config["model"].lower()=="double_gaussian":
+        return {
+            "amp1": amp1,
+            "amp2": amp2,
+            "mu1": mu1,
+            "mu2": mu2,
+            "sigma": sigma,
+            "area1": area1,
+            "area2": area2,
+            "area_total": area_total,
+            "chi2": chi2,
+            "residuals": residuals
+        }
+    
     else:
         return {
             "amp": amp,
@@ -320,6 +424,13 @@ def fit_gaussians_to_all_spectra_lmfit(
         area_nii6548_arr = np.full(n_spec, np.nan)
         area_nii6583_arr = np.full(n_spec, np.nan)
 
+    elif config["model"].lower() == "double_gaussian":
+        amp1_arr = np.full(n_spec, np.nan)
+        amp2_arr = np.full(n_spec, np.nan)
+        mu2_arr = np.full(n_spec, np.nan)
+        area1_arr = np.full(n_spec, np.nan)
+        area2_arr = np.full(n_spec, np.nan)
+
     for i in range(n_spec):
         spec = spectra[:, i]
 
@@ -346,6 +457,17 @@ def fit_gaussians_to_all_spectra_lmfit(
             area_nii6583_arr[i] = result["area_nii6583"]
             area_arr[i] = result["area_total"]
             chi2_arr[i] = result["chi2"]
+        
+        elif config["model"].lower() == "double_gaussian":
+            amp1_arr[i] = result["amp1"]
+            amp2_arr[i] = result["amp2"]
+            mu_arr[i] = result["mu1"]  # or mu2, they are related by delta_lambda
+            mu2_arr[i] = result["mu2"]
+            sigma_arr[i] = result["sigma"]
+            area1_arr[i] = result["area1"]
+            area2_arr[i] = result["area2"]
+            area_arr[i] = result["area_total"]
+            chi2_arr[i] = result["chi2"]
 
         else: # gaussian or gaussian_area_fixed
             amp_arr[i] = result["amp"]
@@ -367,6 +489,19 @@ def fit_gaussians_to_all_spectra_lmfit(
         analysis_table["area_nii6583"] = area_nii6583_arr
         analysis_table["area_total"] = area_arr
         analysis_table["chi2_gauss"] = chi2_arr
+
+    elif config["model"].lower() == "double_gaussian":
+        analysis_table["amp1"] = amp1_arr
+        analysis_table["amp2"] = amp2_arr
+        analysis_table["mu1_gauss"] = mu_arr
+        analysis_table["mu2_gauss"] = mu2_arr
+        analysis_table["sigma_gauss"] = sigma_arr
+        analysis_table["fwhm"] = 2.355 * sigma_arr
+        analysis_table["area1"] = area1_arr
+        analysis_table["area2"] = area2_arr
+        analysis_table["area_total"] = area_arr
+        analysis_table["chi2_gauss"] = chi2_arr
+
     else:
         analysis_table["amp_gauss"] = amp_arr
         analysis_table["mu_gauss"] = mu_arr

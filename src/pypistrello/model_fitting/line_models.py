@@ -25,6 +25,33 @@ def gaussian_area_fixed_lmfit(x, center, sigma, area):
     amp = area / (sigma * np.sqrt(2 * np.pi))
     return amp * np.exp(-0.5 * ((x - center) / sigma)**2)
 
+def double_gaussian_lmfit(x, area, amp2, center, sigma, delta_lambda):
+    """
+    Double Gaussian.
+
+    Parameters
+    ----------
+    area : float
+        Fixed area of the first line.
+    amp2 : float
+        Peak amplitude of the second line.
+    center : float
+        Center of the first line.
+    sigma : float
+        Common sigma.
+    delta_lambda : float
+        Rest-frame wavelength separation between the two lines.
+    """
+
+    center2 = center + delta_lambda
+
+    amp1 = area / (sigma * np.sqrt(2*np.pi))
+
+    g1 = amp1 * np.exp(-0.5*((x-center)/sigma)**2)
+    g2 = amp2 * np.exp(-0.5*((x-center2)/sigma)**2)
+
+    return g1 + g2
+    
 def triplet_HaNII_lmfit(x, area, amp_nii6583, center, sigma):
     """
     Halpha + [NII]6548 + [NII]6583
@@ -49,6 +76,8 @@ def triplet_HaNII_lmfit(x, area, amp_nii6583, center, sigma):
     g_6548 = (amp_nii6583/3.0) * np.exp(-0.5*((x-center_6548)/sigma)**2)
     
     return g_ha + g_6548 + g_6583
+
+
 
 def fit_model_lmfit(x, y, model_func, p0, config):
     """
@@ -91,6 +120,12 @@ def fit_model_lmfit(x, y, model_func, p0, config):
     if "area" in params:
         params["area"].vary = False  # Ensure area is fixed
 
+    if config["model"].lower() == "double_gaussian":
+        if "area1" in params:
+            area0 = params["area1"].value
+            params["area1"].min = 0.8 * area0
+            params["area1"].max = 1.2 * area0
+            
     try:
         result = model.fit(y, params, x=x)
         return result
