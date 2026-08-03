@@ -78,7 +78,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
     line_restframe = config_parameters["line_restframe"]
     if not all(isinstance(lrf, float) for lrf in line_restframe):
-        raise ValueError(f"One or more line rest-frame wavelengths are not floats. Please provide valid float values.")
+        raise ValueError(f"One or more line rest-frame wavelengths are not floats. Please provide valid float values using [].")
     print(f"Line rest-frame wavelength: {line_restframe}")
 
     redshift = config_parameters["redshift"]
@@ -209,9 +209,10 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         # Saving the analysis table with information for every spaxel
         if run_voronoi:
             columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
-                               "velocity","offsets",
+                               "velocity", "offsets",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
-                               "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total"]
+                               "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total,"
+                               "amp1", "amp2", "mu1", "mu2", "area1", "area2", "area_total"]
             
             table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting, analysis_table, columns_to_copy)
         else:
