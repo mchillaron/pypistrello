@@ -11,6 +11,7 @@ import numpy as np
 from .fit_continuum_model import fit_continuum
 from .line_models import gaussian_lmfit, gaussian_area_fixed_lmfit, double_gaussian_lmfit, triplet_HaNII_lmfit
 from .line_models import fit_model_lmfit
+from .array_dictionary import FIELDS, COLUMN_NAMES, EMPTY_RESULTS
 
 def estimate_sigma(x, y):
     """
@@ -211,10 +212,106 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
 
     return model_func, p0
 
+def extract_gaussian_result(result):
+
+    sigma = result.params["sigma"].value
+    mu = result.params["center"].value
+
+    gauss_norm = sigma * np.sqrt(2*np.pi)
+
+    if "amp" in result.params:
+        amp = result.params["amp"].value
+        area = amp * gauss_norm
+    else:
+        area = result.params["area"].value
+        amp = area / gauss_norm
+
+    return {
+        "amp": amp,
+        "mu": mu,
+        "sigma": sigma,
+        "area": area,
+        "chi2": result.chisqr,
+        "residuals": result.residual,
+    }
+
+def extract_triplet_result(result):
+
+    sigma = result.params["sigma"].value
+    mu = result.params["center"].value
+
+    gauss_norm = sigma * np.sqrt(2*np.pi)
+
+    area_ha = result.params["area"].value
+    amp_ha = area_ha / gauss_norm
+
+    amp_nii6583 = result.params["amp_nii6583"].value
+    amp_nii6548 = amp_nii6583 / 3.0
+
+    area_nii6548 = amp_nii6548 * gauss_norm
+    area_nii6583 = amp_nii6583 * gauss_norm
+
+    return {
+
+        "amp_ha": amp_ha,
+        "amp_nii6548": amp_nii6548,
+        "amp_nii6583": amp_nii6583,
+
+        "mu": mu,
+        "sigma": sigma,
+
+        "area_ha": area_ha,
+        "area_nii6548": area_nii6548,
+        "area_nii6583": area_nii6583,
+        "area_total": area_ha + area_nii6548 + area_nii6583,
+
+        "chi2": result.chisqr,
+        "residuals": result.residual,
+    }
+
+def extract_double_gaussian_result(result):
+    
+    sigma = result.params["sigma"].value
+    mu1 = result.params["center"].value
+    delta = result.params["delta_lambda"].value
+    mu2 = mu1 + delta
+
+    area1 = result.params["area"].value
+    amp1 = area1/(sigma*np.sqrt(2*np.pi))
+
+    amp2 = result.params["amp2"].value
+    area2 = amp2*sigma*np.sqrt(2*np.pi)
+
+    return {
+        "amp1": amp1,
+        "amp2": amp2,
+        "mu1": mu1,
+        "mu2": mu2,
+        "sigma": sigma,
+        "area1": area1,
+        "area2": area2,
+        "area_total": area1 + area2,
+        "chi2": result.chisqr,
+        "residuals": result.residual,
+    }
+
+RESULT_EXTRACTORS = {
+
+    "gaussian": extract_gaussian_result,
+
+    "gaussian_area_fixed": extract_gaussian_result,
+
+    "triplet_hanii": extract_triplet_result,
+
+    "double_gaussian": extract_double_gaussian_result,
+
+}
+
 def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analysis_table=None, debug=False):
     """
     Fit Gaussian to one spectrum using lmfit, with proper continuum handling.
     """
+    model = config.get("model", "gaussian").lower()
 
     # Fit continuum
     continuum_model = fit_continuum(wavelength, spectrum, config)
@@ -230,12 +327,9 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
     #lmin, lmax = config["reg_fitting"]
     model_name = config.get("model", "gaussian").lower()
 
-    if model_name == "triplet_hanii":
-        lmin, lmax = config.get("reg_fitting_gaussians", config["reg_fitting"])
-
-    elif model_name=="double_gaussian":
-        lmin,lmax=config.get("reg_fitting_gaussians", config["reg_fitting"])
-
+    if model in ("triplet_hanii", "double_gaussian"):
+        lmin, lmax = config.get("reg_fitting_gaussians",
+                                config["reg_fitting"])
     else:
         lmin, lmax = config["reg_fitting"]
         
@@ -259,140 +353,29 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
         print(result.params["sigma"])
 
     if result is None:
-        # fill the dictionary results with NaN values if the fit failed
-        if model_name == "triplet_hanii":
-            return {
-                "amp_ha": np.nan,
-                "amp_nii6548": np.nan,
-                "amp_nii6583": np.nan,
-                "mu": np.nan,
-                "sigma": np.nan,
-                "area_ha": np.nan,
-                "area_nii6548": np.nan,
-                "area_nii6583": np.nan,
-                "area_total": np.nan,
-                "chi2": np.nan,
-                "residuals": np.full_like(y, np.nan)
-            }
-        
-        elif model_name == "double_gaussian":
-            return {
-                "amp1": np.nan,
-                "amp2": np.nan,
-                "mu1": np.nan,
-                "mu2": np.nan,
-                "sigma": np.nan,
-                "area1": np.nan,
-                "area2": np.nan,
-                "area_total": np.nan,
-                "delta_lambda": np.nan,
-                "chi2": np.nan,
-                "residuals": np.full_like(y, np.nan)
-            }
-    
-        else:
-            return {
-                "amp": np.nan,
-                "mu": np.nan,
-                "sigma": np.nan,
-                "area": np.nan,
-                "chi2": np.nan,
-                "residuals": np.full_like(y, np.nan)
-            }
+        output = {
+            key: np.nan
+            for key in EMPTY_RESULTS[model]
+        }
+        output["residuals"] = np.full_like(y, np.nan)
+        return output
 
-    # Extract results
-    if config["model"].lower() == "triplet_hanii":
-        sigma = result.params["sigma"].value
-        mu = result.params["center"].value
-
-        area_ha = result.params["area"].value
-        amp_ha = area_ha / (sigma * np.sqrt(2*np.pi))
-        
-        #amp_ha = result.params["amp_ha"].value
-        amp_nii6583 = result.params["amp_nii6583"].value
-        amp_nii6548 = amp_nii6583 / 3.0  # fixed ratio for [NII] lines
-
-        #area_ha = amp_ha * sigma * np.sqrt(2*np.pi)
-        area_nii6548 = amp_nii6548 * sigma * np.sqrt(2*np.pi)
-        area_nii6583 = amp_nii6583 * sigma * np.sqrt(2*np.pi)
-        area_total = area_ha + area_nii6548 + area_nii6583
-
-    elif config["model"].lower() == "double_gaussian":
-        sigma = result.params["sigma"].value
-        mu1 = result.params["center"].value
-        delta = result.params["delta_lambda"].value
-        mu2 = mu1 + delta
-        area1 = result.params["area"].value
-        amp1 = area1/(sigma*np.sqrt(2*np.pi))
-        amp2 = result.params["amp2"].value
-        area2 = amp2*sigma*np.sqrt(2*np.pi)
-        area_total = area1 + area2
-
-    else:
-        sigma = result.params["sigma"].value
-        mu = result.params["center"].value
-
-        if "amp" in result.params:
-            amp = result.params["amp"].value
-            area = amp * sigma * np.sqrt(2 * np.pi)
-        else:
-            # obtain amp from area and sigma if using area-fixed model
-            area = result.params["area"].value
-            amp = area / (sigma * np.sqrt(2*np.pi))
-
-    chi2 = result.chisqr
-    residuals = result.residual
 
     # Debug plot
     if debug:
         import matplotlib.pyplot as plt
 
         plt.figure()
+
         plt.plot(wavelength, spectrum, label="Original")
         plt.plot(wavelength, continuum, label="Continuum")
-        plt.plot(x, y, label="Line (cont sub)")
-        plt.plot(x, result.best_fit, label="Gaussian fit")
+        plt.plot(x, y, label="Continuum subtracted")
+        plt.plot(x, result.best_fit, label="Best fit")
+
         plt.legend()
-        plt.title("DEBUG FIT")
         plt.show()
 
-    if config["model"].lower() == "triplet_hanii":
-        return {
-            "amp_ha": amp_ha,
-            "amp_nii6548": amp_nii6548,
-            "amp_nii6583": amp_nii6583,
-            "mu": mu,
-            "sigma": sigma,
-            "area_ha": area_ha,
-            "area_nii6548": area_nii6548,
-            "area_nii6583": area_nii6583,
-            "area_total": area_total,
-            "chi2": chi2,
-            "residuals": residuals
-        } 
-    elif config["model"].lower()=="double_gaussian":
-        return {
-            "amp1": amp1,
-            "amp2": amp2,
-            "mu1": mu1,
-            "mu2": mu2,
-            "sigma": sigma,
-            "area1": area1,
-            "area2": area2,
-            "area_total": area_total,
-            "chi2": chi2,
-            "residuals": residuals
-        }
-    
-    else:
-        return {
-            "amp": amp,
-            "mu": mu,
-            "sigma": sigma,
-            "area": area,
-            "chi2": chi2,
-            "residuals": residuals
-        }
+    return RESULT_EXTRACTORS[model](result)
 
 
 
@@ -409,27 +392,12 @@ def fit_gaussians_to_all_spectra_lmfit(
 
     n_spec = spectra.shape[1]
     print(f"INFO: Starting Gaussian fitting for {n_spec} spectra")
-
-    amp_arr = np.full(n_spec, np.nan)
-    mu_arr = np.full(n_spec, np.nan)
-    sigma_arr = np.full(n_spec, np.nan)
-    area_arr = np.full(n_spec, np.nan)
-    chi2_arr = np.full(n_spec, np.nan)
-
-    if config["model"].lower() == "triplet_hanii":
-        amp_ha_arr = np.full(n_spec, np.nan)
-        amp_nii6548_arr = np.full(n_spec, np.nan)
-        amp_nii6583_arr = np.full(n_spec, np.nan)
-        area_ha_arr = np.full(n_spec, np.nan)
-        area_nii6548_arr = np.full(n_spec, np.nan)
-        area_nii6583_arr = np.full(n_spec, np.nan)
-
-    elif config["model"].lower() == "double_gaussian":
-        amp1_arr = np.full(n_spec, np.nan)
-        amp2_arr = np.full(n_spec, np.nan)
-        mu2_arr = np.full(n_spec, np.nan)
-        area1_arr = np.full(n_spec, np.nan)
-        area2_arr = np.full(n_spec, np.nan)
+    model = config.get("model", "gaussian").lower()
+    arrays = {
+        name: np.full(n_spec, np.nan)
+        for name in FIELDS[model]
+    }
+    print(arrays.keys())
 
     for i in range(n_spec):
         spec = spectra[:, i]
@@ -445,70 +413,16 @@ def fit_gaussians_to_all_spectra_lmfit(
 
         if result is None:
             continue
-        
-        if config["model"].lower() == "triplet_hanii":
-            amp_ha_arr[i] = result["amp_ha"]
-            amp_nii6548_arr[i] = result["amp_nii6548"]
-            amp_nii6583_arr[i] = result["amp_nii6583"]
-            mu_arr[i] = result["mu"]
-            sigma_arr[i] = result["sigma"]
-            area_ha_arr[i] = result["area_ha"]
-            area_nii6548_arr[i] = result["area_nii6548"]
-            area_nii6583_arr[i] = result["area_nii6583"]
-            area_arr[i] = result["area_total"]
-            chi2_arr[i] = result["chi2"]
-        
-        elif config["model"].lower() == "double_gaussian":
-            amp1_arr[i] = result["amp1"]
-            amp2_arr[i] = result["amp2"]
-            mu_arr[i] = result["mu1"]  # or mu2, they are related by delta_lambda
-            mu2_arr[i] = result["mu2"]
-            sigma_arr[i] = result["sigma"]
-            area1_arr[i] = result["area1"]
-            area2_arr[i] = result["area2"]
-            area_arr[i] = result["area_total"]
-            chi2_arr[i] = result["chi2"]
 
-        else: # gaussian or gaussian_area_fixed
-            amp_arr[i] = result["amp"]
-            mu_arr[i] = result["mu"]
-            sigma_arr[i] = result["sigma"]
-            area_arr[i] = result["area"]
-            chi2_arr[i] = result["chi2"]
+        for key in arrays:
+            arrays[key][i] = result[key]
+
 
     # Save results
-    if config["model"].lower() == "triplet_hanii":
-        analysis_table["amp_ha"] = amp_ha_arr
-        analysis_table["amp_nii6548"] = amp_nii6548_arr
-        analysis_table["amp_nii6583"] = amp_nii6583_arr
-        analysis_table["mu_gauss"] = mu_arr
-        analysis_table["sigma_gauss"] = sigma_arr
-        analysis_table["fwhm"] = 2.355 * sigma_arr
-        analysis_table["area_ha"] = area_ha_arr
-        analysis_table["area_nii6548"] = area_nii6548_arr
-        analysis_table["area_nii6583"] = area_nii6583_arr
-        analysis_table["area_total"] = area_arr
-        analysis_table["chi2_gauss"] = chi2_arr
+    for key, column in COLUMN_NAMES[model].items():
+        analysis_table[column] = arrays[key]
 
-    elif config["model"].lower() == "double_gaussian":
-        analysis_table["amp1"] = amp1_arr
-        analysis_table["amp2"] = amp2_arr
-        analysis_table["mu1_gauss"] = mu_arr
-        analysis_table["mu2_gauss"] = mu2_arr
-        analysis_table["sigma_gauss"] = sigma_arr
-        analysis_table["fwhm"] = 2.355 * sigma_arr
-        analysis_table["area1"] = area1_arr
-        analysis_table["area2"] = area2_arr
-        analysis_table["area_total"] = area_arr
-        analysis_table["chi2_gauss"] = chi2_arr
-
-    else:
-        analysis_table["amp_gauss"] = amp_arr
-        analysis_table["mu_gauss"] = mu_arr
-        analysis_table["sigma_gauss"] = sigma_arr
-        analysis_table["fwhm"] = 2.355 * sigma_arr
-        analysis_table["area_gauss"] = area_arr
-        analysis_table["chi2_gauss"] = chi2_arr
+    analysis_table["fwhm"] = 2.355 * arrays["sigma"]
 
     print("INFO: Gaussian fitting completed")
 
