@@ -17,9 +17,9 @@ import os
 import teareduce as tea
 
 from .build_2d_map import build_2d_map
-from .calculate_contours import calculate_contours
-from .calculate_contours import add_contours_to_plot
+from .calculate_contours_flux import prepare_map_for_contours, compute_contour_levels, save_processed_map, draw_contours, load_processed_map
 from .build_map_from_bins import build_map_from_bins
+
 
 def make_a_map(table, wcs, config_parameters, working_dir,
                output_dir_path, map_choice, bin_map=None):
@@ -130,20 +130,46 @@ def make_a_map(table, wcs, config_parameters, working_dir,
     cbar = plt.colorbar(im, ax=ax)
     cbar.set_label(params.get("colorbar_label", ""))
 
-    # contours
     if params.get("calculate_contours", False):
-        print("INFO: Calculating contours")
-        calculate_contours(params, table, working_dir, map_choice, ax)
+        contour_image, contour_mask = prepare_map_for_contours(
+            zi,
+            smooth_sigma=params.get("smooth_sigma", 1.0),
+            fill_nan=True,
+        )
+
+        contour_levels = compute_contour_levels(
+            contour_image,
+            params,
+        )
+
+        save_processed_map(
+            working_dir / f"{map_choice}_contours.npz",
+            contour_image,
+            contour_levels,
+        )
+
+        draw_contours(
+            ax,
+            contour_image,
+            contour_levels,
+            colors=params.get("contours_color", "black"),
+            linewidths=params.get("contours_linewidth", 1.0),
+        )
 
     if params.get("add_flux_contours", False):
-        contour_file_loaded = params.get("flux_contour_file")
 
-        if contour_file_loaded is None:
-            raise ValueError("add_flux_contours=True but no flux_contour_file specified")
+        image, levels = load_processed_map(
+            working_dir / params["flux_contour_file"]
+        )
 
-        contour_file_loaded_path = working_dir / contour_file_loaded
-        print(f"INFO: Adding contours from {contour_file_loaded_path}")
-        add_contours_to_plot(params, contour_file_loaded, ax)
+        draw_contours(
+            ax,
+            image,
+            levels,
+            colors=params.get("contours_color", "black"),
+            linewidths=params.get("contours_linewidth", 1.0),
+            contours_outlined=params.get("contours_outlined", False)
+        )
 
     # Save figure
     bg = params.get("background", None)
@@ -172,146 +198,3 @@ def make_a_map(table, wcs, config_parameters, working_dir,
     plt.close(fig)
 
     print(f"[INFO] Map saved in {output_path}")
-
-
-
-
-def make_a_map_beforevoronoi(table, wcs, config_parameters, working_dir, output_dir_path, map_choice):
-    """
-    Create a 2D map from tabular data and apply visualization settings.
-
-    This function generates a specific map
-    (e.g., flux, velocity, dispersion) using the input table and WCS.
-
-    Parameters
-    ----------
-    table : astropy.table.Table
-        Table containing the spatial coordinates and physical quantities
-        derived from the spectral analysis.
-    wcs : astropy.wcs.WCS
-        World Coordinate System associated with the FITS data,
-        used for proper spatial projection.
-    config_parameters : dict
-        Dictionary of parameters loaded from the YAML configuration file.
-        These parameters control plotting style, contour settings,
-        and map-specific options.
-    working_dir : str
-        Path to the working directory where temporary or auxiliary files
-        (e.g., saved contours) will be written.
-    output_dir_path : str
-        Directory where the final map images will be saved.
-    map_choice : str
-        Identifier of the map being generated, used to select
-        the appropriate configuration parameters."""
-    
-    # Prepare the parameters in the YAML in the correct format to be used
-    if map_choice == "flux":
-        yaml_key = "flux_map"
-    elif map_choice == "vel":
-        yaml_key = "velocity_map"
-    elif map_choice == "snr":
-        yaml_key = "snr_map"
-    elif map_choice == "voronoi":
-        yaml_key = "voronoi_map"
-    else:
-        raise ValueError("map_choice must be 'flux', 'vel' or 'snr'")
-    
-    params = config_parameters[yaml_key]
-    visualize = params.get("visualize", False)
-    interpolate = params.get("interpolate", True)
-    interp_method = params.get("interpolation_method", "nearest")
-    vcenter = params.get("vcenter")
-    zscale_factor = params.get("zscale_factor")
-    if zscale_factor is None:
-        zscale_factor = 0.05
-
-    cmap_name = params.get("cmap", "viridis")
-    print(f"The colormap for the plot is {cmap_name}")
-    cmap = Colormap(cmap_name).to_mpl()
-
-    # Extract column information from the Table
-    x = table["x"] # FITS format from the Table Attention!
-    y = table["y"] # FITS format from the Table
-    data = table[params["data_column"]]
-
-    # Now we build a 2d map, the result will be different depending if interpolation is True:
-    zi = build_2d_map(x, y, data, interpolate=interpolate, method=interp_method)
-
-    # PLOT SET UP ----------------------------------
-    
-    fig = plt.figure(figsize=(7, 6))
-
-    # Axis labels
-    if params.get("wcs_activate", False) and wcs is not None:
-        ax = plt.subplot(projection=wcs)
-        ax.set_xlabel("RA")
-        ax.set_ylabel("DEC")
-    else:
-        ax = plt.subplot()
-        ax.set_xlabel("X [pix]")
-        ax.set_ylabel("Y [pix]")
-
-    # Min and max values for colorbar
-    vmin = params.get("vmin")
-    vmax = params.get("vmax")
-    if vmin is None and vmax is None:
-        finite_zi = zi[np.isfinite(zi)]
-        if finite_zi.size == 0:
-            raise ValueError("No finite data available for zscale")
-        vmin, vmax = tea.zscale(image=finite_zi, factor=zscale_factor)
-        print(f"Auto zscale applied: vmin={vmin:.3e}, vmax={vmax:.3e}")
-
-    # Plotting
-    if vcenter is not None:
-        print(f"The value {vcenter} will be fixed in the central color of the colorbar")
-        norm = TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
-        im = ax.imshow(zi, origin="lower",cmap=cmap, norm=norm)
-    else:
-        print("No value given to fix the central color of the colorbar")
-        im = ax.imshow(zi, origin="lower",cmap=cmap, vmin=vmin, vmax=vmax)
-
-    # Colorbar settings
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label(params.get("colorbar_label", ""))
-
-    # Contours
-    if params.get("calculate_contours", False): 
-        print("Calculating contours")
-        calculate_contours(params, table, working_dir, map_choice, ax)
-        
-    if params.get("add_flux_contours", False):
-        contour_file_loaded = params.get("flux_contour_file")
-        if contour_file_loaded is None:
-            raise ValueError(
-                "add_flux_contours=True but no flux_contour_file specified"
-            )
-
-        contour_file_loaded_path = working_dir / contour_file_loaded
-        print(f"Adding contours from file {contour_file_loaded_path}")
-        add_contours_to_plot(params, contour_file_loaded, ax)
-        
-    # Save the map
-    bg = params.get("background", None)
-    if bg == "transparent":
-        transparent = True
-    else:
-        transparent = False
-        if bg is not None:
-            fig.patch.set_facecolor(bg)
-            ax.set_facecolor(bg)
-
-    os.makedirs(output_dir_path, exist_ok=True)
-    output_path = os.path.join(output_dir_path, f"{map_choice}_map.pdf")
-    output_path_png = os.path.join(output_dir_path, f"{map_choice}_map.png")
-
-    plt.savefig(output_path, dpi=200, bbox_inches="tight")
-    if transparent:
-        fig.savefig(output_path_png, dpi=300, transparent=True)
-    
-    if visualize:
-        plt.show()
-
-    plt.close(fig)
-
-    print(f"Map saved in {output_path}")
-    
