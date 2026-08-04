@@ -45,6 +45,10 @@ def measure_spectra_properties(
         line_restframe
     )
 
+    print(f"len(analysis_table) = {len(analysis_table)}")
+    print(f"len(offsets)        = {len(offsets)}")
+    print(f"spectra.shape       = {spectra.shape}")
+
     analysis_table["offsets"] = offsets
     analysis_table["velocity"] = velocity * u.km / u.s
     analysis_table[:5].pprint()

@@ -160,7 +160,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         if run_voronoi:
             print(f"{BLUE}{BOLD} Applying Powerbin for Voronoi Tessellation {RESET}")
 
-            pow, table_results_fitting = run_powerbin(table_results_fitting, config_parameters, debug_level, snr_table=snr_table)
+            pow, table_results_fitting, pow_valid_mask = run_powerbin(table_results_fitting, config_parameters, debug_level, snr_table=snr_table)
 
             cube_binned, bin_map, cube_voronoi = sum_spectra_voronoi(cube_data_real, table_results_fitting, output_dir_path, debug_level)
             hdu = fits.PrimaryHDU(cube_binned)
@@ -208,7 +208,8 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         
         # Saving the analysis table with information for every spaxel
         if run_voronoi:
-            columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
+            columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
+                               "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
                                "velocity", "offsets",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
                                "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total,"
@@ -225,6 +226,21 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         )
         table_collapsed[:5].pprint()
         table_collapsed[-5:].pprint()
+        
+        print("\n" + "=" * 70)
+        print("             TABLE SUMMARY")
+        print("=" * 70)
+
+        print(f"Number of rows    : {len(table_collapsed):>8}")
+        print(f"Number of columns : {len(table_collapsed.colnames):>8}")
+
+        print("\nColumn names")
+        print("-" * 70)
+
+        for i, col in enumerate(table_collapsed.colnames, start=1):
+            print(f"{i:2d}. {col}")
+
+        print("=" * 70)
         print("INFO: Final unified table saved")
 
         # -------------------------
@@ -255,12 +271,12 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                     print(f"{GREEN}INFO:{RESET} Rerunning measurements on simulated cubes in {simulation_dir_path}")
                     simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
                                                         data_extension, config_parameters, redshift, line_restframe,
-                                                        real_cube_measured, snr_table=snr_table, pow=pow)
+                                                        real_cube_measured, snr_table=snr_table, pow=pow, pow_valid_mask=pow_valid_mask)
             else:
                 print("INFO: Creating a new .npy file with all measurements from simulated cubes...")
                 simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
                                                             data_extension, config_parameters, redshift, line_restframe,
-                                                            real_cube_measured, snr_table=snr_table, pow=pow)
+                                                            real_cube_measured, snr_table=snr_table, pow=pow, pow_valid_mask=pow_valid_mask)
 
             if run_voronoi:
                 # Adding to every table a new column called "bin_snr_sim" 

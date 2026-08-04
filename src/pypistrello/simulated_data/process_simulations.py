@@ -26,7 +26,8 @@ def process_simulations(
         line_restframe,
         real_cube_measured=False, 
         snr_table=None,
-        pow=None):
+        pow=None,
+        pow_valid_mask=None):
 
     cube_files = sorted(
         f for f in simulation_dir.iterdir()
@@ -51,9 +52,11 @@ def process_simulations(
                 line_restframe,
                 real_cube_measured, 
                 snr_table, 
-                pow)
+                pow,
+                pow_valid_mask)
 
         print(f"{GREEN}INFO:{RESET} {BOLD}Finished processing simulation {cube_path.name}{RESET}")
+        print()
         all_measurements_cubes.append(measurement_sim_cube)
         if columns is None:
             columns = col_names

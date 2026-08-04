@@ -34,7 +34,8 @@ def process_simulated_cube(
         line_restframe,
         real_cube_measured,
         snr_table,
-        pow):
+        pow,
+        pow_valid_mask):
 
     print(f"INFO: Reading cube {cube_path.name} with data extension '{data_extension}'")
     primary_header, data_header, cube_data, wcs_info = read_fits_cube(cube_path, data_extension)
@@ -56,13 +57,34 @@ def process_simulated_cube(
         # check if voronoi has been carried out in the original cube
         if pow is not None:
             print("INFO: Applying the original Voronoi binning to simulated cube")
-            bin_num = pow.bin_num                           # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
-            bin_capacity = pow.bin_capacity                 # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.
-            print("There is a total number of bins of", np.max(bin_num))
 
-            table_spaxels["bin_id"] = bin_num               # These are all original cube values
-            table_spaxels["bin_capacity"] = bin_capacity[bin_num]
-            table_spaxels["bin_snr"] = np.sqrt(bin_capacity[bin_num]) # this is the SNR of the original spectrum
+            #bin_num = pow.bin_num                           # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
+            #bin_capacity = pow.bin_capacity                 # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.
+            #print("There is a total number of bins of", np.max(bin_num))
+
+            #table_spaxels["bin_id"] = bin_num               # These are all original cube values
+            #table_spaxels["bin_capacity"] = bin_capacity[bin_num]
+            #table_spaxels["bin_snr"] = np.sqrt(bin_capacity[bin_num]) # this is the SNR of the original spectrum
+
+            n_spaxels = len(table_spaxels)
+
+            bin_id = np.full(n_spaxels, -1, dtype=int)
+            bin_center_x = np.full(n_spaxels, np.nan)
+            bin_center_y = np.full(n_spaxels, np.nan)
+            bin_capacity = np.full(n_spaxels, np.nan)
+            bin_snr = np.full(n_spaxels, np.nan)
+
+            bin_id[pow_valid_mask] = pow.bin_num
+            bin_center_x[pow_valid_mask] = pow.xybin[pow.bin_num][:,0]
+            bin_center_y[pow_valid_mask] = pow.xybin[pow.bin_num][:,1]
+            bin_capacity[pow_valid_mask] = pow.bin_capacity[pow.bin_num]
+            bin_snr[pow_valid_mask] = np.sqrt(pow.bin_capacity[pow.bin_num])
+
+            table_spaxels["bin_id"] = bin_id
+            table_spaxels["bin_center_x"] = bin_center_x
+            table_spaxels["bin_center_y"] = bin_center_y
+            table_spaxels["bin_capacity"] = bin_capacity
+            table_spaxels["bin_snr"] = bin_snr
             
             #pow_sim, table_spaxels = run_powerbin(table_spaxels, config_parameters, snr_table=snr_table)
             cube_binned_sim, bin_map_sim, cube_voronoi_sim = sum_spectra_voronoi(
@@ -72,6 +94,7 @@ def process_simulated_cube(
             spectra_sim = cube_binned_sim   # (n_lambda, n_bins)
             analysis_table_sim = area_trapz_spectra_bin(spectra_sim, wavelength_range, config_parameters, 
                                                 analysis_table_sim, redshift, line_restframe)   
+            
         else:
             print("INFO: No Voronoi binning to simulated cube")
             spectra_sim = extract_spectra_from_table(cube_data, table_spaxels)
@@ -81,10 +104,12 @@ def process_simulated_cube(
         analysis_table_sim = measure_spectra_properties(spectra_sim, wavelength_range, config_parameters,
                                                         analysis_table_sim, redshift, line_restframe, real_cube_measured=real_cube_measured)
         if pow is not None:
-            columns_to_copy = ["n_pix", "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",
-                               "velocity","offsets",
+            columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
+                               "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
+                               "velocity", "offsets",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
-                               "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total"]
+                               "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total,"
+                               "amp1", "amp2", "mu1", "mu2", "area1", "area2", "area_total"]
             
             results_sim_table = propagate_bin_to_spaxel_table(table_spaxels, analysis_table_sim, columns_to_copy)
         else: # case pow_sim=None
