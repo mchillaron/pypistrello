@@ -40,28 +40,41 @@ def propagate_bin_to_spaxel_table(spaxel_table, bin_table, columns_to_copy):
     for col in columns_to_copy:
         print("Processing column:", col)
         if col not in bin_table.colnames:
-            print(f"WARNING: Column '{col}' not found in bin_table, skipping")
+            print(f"INFO: Column '{col}' not found in bin_table, skipping")
             continue
 
         values_bin = bin_table[col]   # (N_bins,)
 
         # Allocate output column
-        #values_spaxel = np.zeros(len(spaxel_table))
-        if col == "bin_cont_coeffs":
-            values_spaxel = np.vstack([
-                values_bin[bin_index_map[b]] for b in bin_id_spaxel
-            ])
-        else:
-            values_spaxel = np.array([
-                values_bin[bin_index_map[b]] for b in bin_id_spaxel
-            ])
+        if len(values_bin.shape) == 1:           # Scalar column
+            dtype = values_bin.dtype
 
-        for i in range(len(spaxel_table)):
-            b = bin_id_spaxel[i]
+            if np.issubdtype(dtype, np.floating):
+                values_spaxel = np.full(len(spaxel_table), np.nan, dtype=float)
+
+            elif np.issubdtype(dtype, np.integer):
+                values_spaxel = np.full(len(spaxel_table), -1, dtype=dtype)
+
+            else:
+                values_spaxel = np.empty(len(spaxel_table), dtype=dtype)
+
+        else:
+                                                # Vector column (e.g. continuum coefficients)
+            n_comp = values_bin.shape[1]
+            values_spaxel = np.full(
+                (len(spaxel_table), n_comp),
+                np.nan,
+                dtype=float
+            )
+
+        for i, b in enumerate(bin_id_spaxel):
+            if b < 0:                         # Skip discarded spaxels
+                continue
+
             idx = bin_index_map[b]
             values_spaxel[i] = values_bin[idx]
 
-        # Add to table
+        # Add propagated column
         spaxel_table[col] = values_spaxel
 
         print(f"INFO: Column '{col}' added to spaxel table")

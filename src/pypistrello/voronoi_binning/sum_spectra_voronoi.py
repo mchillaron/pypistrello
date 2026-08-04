@@ -59,8 +59,11 @@ def sum_spectra_voronoi(cube_data, table_results_fitting, output_dir_path, debug
     # bin_id per spaxel
     bin_id = table_results_fitting["bin_id"] # shape: (N_spaxels,)
     n_bins = np.max(bin_id) + 1             # Total number of bins
-    bin_map[y, x] = bin_id                  # the map contains the bin ID for each spaxel, 
-                                            # and -1 for spaxels not in the table (if any)
+    valid = bin_id >= 0
+    bin_map[y[valid], x[valid]] = bin_id[valid]
+    #bin_map[y, x] = bin_id                  # the map contains the bin ID for each spaxel, 
+                                             # and -1 for spaxels not in the table (if any)
+                
 
     print(f"INFO: Number of bins: {n_bins}")
     print(f"INFO: Number of spaxels in table: {len(bin_id)}")

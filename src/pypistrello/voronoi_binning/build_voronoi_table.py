@@ -31,7 +31,9 @@ def build_voronoi_table(table_results_fitting, pow):
     """
 
     bin_id = table_results_fitting["bin_id"]    # shape: (N_spaxels,)
-    unique_bins = np.unique(bin_id)             # shape: (N_bins,)
+    #unique_bins = np.unique(bin_id)            # shape: (N_bins,)
+    valid = bin_id >= 0                         # have to exclude spaxels with -1 bin_id (unbinned spaxels)
+    unique_bins = np.unique(bin_id[valid])      # shape: (N_bins,)
 
     n_bins = len(unique_bins)
 
