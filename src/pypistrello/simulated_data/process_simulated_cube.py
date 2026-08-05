@@ -33,17 +33,19 @@ def process_simulated_cube(
         redshift,
         line_restframe,
         real_cube_measured,
-        snr_table,
+        trapz_table,
         pow,
-        pow_valid_mask):
+        pow_valid_mask, 
+        ):
 
     print(f"INFO: Reading cube {cube_path.name} with data extension '{data_extension}'")
     primary_header, data_header, cube_data, wcs_info = read_fits_cube(cube_path, data_extension)
 
-    if real_cube_measured:
+    if not real_cube_measured:
+
         print("INFO: Calculating trapezoidal areas for all spectra in this simulated cube")
-        # This is an Astropy table with "x", "y", "area_trapz", "cont_coeffs", "cont_noise", "snr_trapz"
-        table_spaxels = main_trapz_fitting(
+
+        results_sim_table  = main_trapz_fitting(
             None,  # no output dir needed
             cube_data,
             wcs_info,
@@ -53,18 +55,18 @@ def process_simulated_cube(
             redshift,
             line_restframe
         )
+
+    else:
         
+        print("INFO: Loading trapezoidal measurements")
+        if trapz_table is None:
+            raise RuntimeError("Trapzoidal measurements were not provided.")
+
+        table_spaxels = trapz_table.copy()
+
         # check if voronoi has been carried out in the original cube
         if pow is not None:
             print("INFO: Applying the original Voronoi binning to simulated cube")
-
-            #bin_num = pow.bin_num                           # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
-            #bin_capacity = pow.bin_capacity                 # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.
-            #print("There is a total number of bins of", np.max(bin_num))
-
-            #table_spaxels["bin_id"] = bin_num               # These are all original cube values
-            #table_spaxels["bin_capacity"] = bin_capacity[bin_num]
-            #table_spaxels["bin_snr"] = np.sqrt(bin_capacity[bin_num]) # this is the SNR of the original spectrum
 
             n_spaxels = len(table_spaxels)
 
@@ -74,10 +76,10 @@ def process_simulated_cube(
             bin_capacity = np.full(n_spaxels, np.nan)
             bin_snr = np.full(n_spaxels, np.nan)
 
-            bin_id[pow_valid_mask] = pow.bin_num
+            bin_id[pow_valid_mask] = pow.bin_num                                    # its shape is (N,) where N is the number of spaxels in the original table, and each value is the bin ID assigned to that spaxel.
             bin_center_x[pow_valid_mask] = pow.xybin[pow.bin_num][:,0]
             bin_center_y[pow_valid_mask] = pow.xybin[pow.bin_num][:,1]
-            bin_capacity[pow_valid_mask] = pow.bin_capacity[pow.bin_num]
+            bin_capacity[pow_valid_mask] = pow.bin_capacity[pow.bin_num]            # its shape is (M,) where M is the number of bins, and each value is the total capacity (S/N)^2 of that bin.
             bin_snr[pow_valid_mask] = np.sqrt(pow.bin_capacity[pow.bin_num])
 
             table_spaxels["bin_id"] = bin_id
@@ -115,21 +117,9 @@ def process_simulated_cube(
         else: # case pow_sim=None
             results_sim_table = analysis_table_sim
         
-
-    else:
-        print("INFO: Calculating trapezoidal areas for all spectra in this simulated cube")
-        results_sim_table = main_trapz_fitting(
-            None,  # no output dir needed
-            cube_data,
-            wcs_info,
-            wavelength_range,
-            config_parameters,
-            None,  # no table path needed
-            redshift,
-            line_restframe
-        )
-
+        
     print(results_sim_table)
+
     # the result of this function is an Astropy Table so we convert it to array
     results_sim, col_names = table_to_array(results_sim_table)
 
