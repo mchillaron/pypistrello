@@ -125,24 +125,25 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         
         if simulation_dir_path is not None:
             print(f"{BLUE}{BOLD} Working with simulated cubes{RESET}")
-            sim_file = output_dir_path / "simulated_measurements.npy"
-            sim_file_npz = output_dir_path / "simulated_measurements.npz"
+            
+            sim_trapz_file_npz = output_dir_path / "simulation_trapz_measurements.npz"
 
-            if sim_file.exists():
+            if sim_trapz_file_npz.exists():
                 load_simulated_data = question_yes_no(
-                    "Load simulated measurements from existing .npy file?"
+                    "Load simulated measurements from existing .npz file?"
                 )
                 if load_simulated_data:
-                    print(f"{GREEN}INFO:{RESET} Loading simulated measurements from {sim_file}")
-                    simulation_results = np.load(sim_file)
+                    print(f"{GREEN}INFO:{RESET} Loading simulated measurements from {sim_trapz_file_npz}")
+                    simulation_results_trapz_npz = np.load(sim_trapz_file_npz, allow_pickle=True)
+                    simulation_results = simulation_results_trapz_npz['measurements']
                 else:
                     print(f"{GREEN}INFO:{RESET} Rerunning measurements on simulated cubes in {simulation_dir_path}")
                     simulation_results = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
-                                                            data_extension, config_parameters, redshift, line_restframe)
+                                                            data_extension, config_parameters, redshift, line_restframe, sim_trapz_file_npz)
             else:
                 print(f"{GREEN}INFO:{RESET} Looking for simulated data in {simulation_dir_path}")
                 simulation_results = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
-                                                        data_extension, config_parameters, redshift, line_restframe)
+                                                        data_extension, config_parameters, redshift, line_restframe, sim_trapz_file_npz)
 
             print(f"{BLUE}{BOLD} Calculating SNR using simulated measurements{RESET}")
             snr_table = compute_sim_snr(table_results_fitting, "area_trapz", simulation_results, config_parameters, debug_level=debug_level)
@@ -209,7 +210,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         # Saving the analysis table with information for every spaxel
         if run_voronoi:
             columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
-                               "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
+                               "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",
                                "velocity", "offsets",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
                                "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total,"
@@ -249,9 +250,12 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
         if simulation_dir_path is not None:
             print(f"{BLUE}{BOLD} Performing same analysis on simulated cubes {RESET}")
-            if sim_file_npz.exists():
-                print("A .npz file with metadata has been found in the directory")
-                data_sim_npz = np.load(sim_file_npz, allow_pickle=True)
+
+            sim_analysis_file_npz = output_dir_path / "simulation_full_analysis.npz"
+
+            if sim_analysis_file_npz.exists():
+                print("A .npz file with full analysis of simulated cubes has been found in the directory")
+                data_sim_npz = np.load(sim_analysis_file_npz, allow_pickle=True)
 
                 if "columns" in data_sim_npz:
                     columns = data_sim_npz["columns"].tolist()
@@ -262,21 +266,26 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                     print(f"{MAGENTA}WARNING:{RESET} No column metadata found in .npz")
                 
                 load_simulated_data = question_yes_no(
-                    "Load simulated measurements from existing .npy file?"
+                    "Load simulated measurements from existing .npz file?"
                 )
                 if load_simulated_data:
-                    print(f"{GREEN}INFO:{RESET} Loading simulated measurements from {sim_file}")
-                    simulation_results_props = np.load(sim_file)
+                    print(f"{GREEN}INFO:{RESET} Loading simulated measurements from {sim_analysis_file_npz}")
+                    simulation_results_props_npz = np.load(sim_analysis_file_npz, allow_pickle=True)
+                    simulation_results_props = simulation_results_props_npz['measurements']
                 else:
                     print(f"{GREEN}INFO:{RESET} Rerunning measurements on simulated cubes in {simulation_dir_path}")
                     simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
                                                         data_extension, config_parameters, redshift, line_restframe,
-                                                        real_cube_measured, snr_table=snr_table, pow=pow, pow_valid_mask=pow_valid_mask)
+                                                        sim_analysis_file_npz,
+                                                        real_cube_measured, trapz_npz_filename=sim_trapz_file_npz, 
+                                                        pow=pow, pow_valid_mask=pow_valid_mask)
             else:
-                print("INFO: Creating a new .npy file with all measurements from simulated cubes...")
+                print("INFO: Creating a new .npz file with all measurements from simulated cubes...")
                 simulation_results_props = process_simulations(simulation_dir_path, output_dir_path, wavelength_range,
                                                             data_extension, config_parameters, redshift, line_restframe,
-                                                            real_cube_measured, snr_table=snr_table, pow=pow, pow_valid_mask=pow_valid_mask)
+                                                            sim_analysis_file_npz,
+                                                            real_cube_measured, trapz_npz_filename=sim_trapz_file_npz,
+                                                            pow=pow, pow_valid_mask=pow_valid_mask)
 
             if run_voronoi:
                 # Adding to every table a new column called "bin_snr_sim" 
