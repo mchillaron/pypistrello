@@ -211,10 +211,10 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         if run_voronoi:
             columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
                                "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",
-                               "velocity", "offsets",
+                               "velocity", "offsets", "sigmavel_AA", "sigmavel_AA_corr", "sigmavel_kms", "sigmavel_kms_corr",
                                "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
                                "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total,"
-                               "amp1", "amp2", "mu1", "mu2", "area1", "area2", "area_total"]
+                               "amp1", "amp2", "mu1", "mu2", "area1", "area2", "area_total", "sigmavel1_AA", "sigmavel1_AA_corr", "sigmavel1_kms", "sigmavel1_kms_corr", "sigmavel2_AA", "sigmavel2_AA_corr", "sigmavel2_kms", "sigmavel2_kms_corr"]
             
             table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting, analysis_table, columns_to_copy)
         else:
@@ -293,7 +293,14 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
                 if len(table_collapsed) == len(bin_snr_table):
                     col_index = table_collapsed.colnames.index("bin_snr_trapz") + 1 
                     table_collapsed.add_column(bin_snr_table, name="bin_snr_sim", index=col_index)
-                    table_collapsed.write(table_path, overwrite=True)
+                    #table_collapsed.write(table_path, overwrite=True)
+                    save_table_with_wcs_extension(
+                        table_collapsed,
+                        table_path,
+                        wcs_info=wcs_info_real
+                    )
+
+        
         
                 
     print(f"Goodbye!")
