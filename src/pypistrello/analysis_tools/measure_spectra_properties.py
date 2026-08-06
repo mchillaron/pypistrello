@@ -8,10 +8,13 @@
 #
 
 import astropy.units as u
+
+from .calculate_kinematics import convert_offset_velocity, calculate_dispersion
 from ..area_fitting.crosscorrelation_spectra import crosscorrelate_spectra_unified
-from ..area_fitting.crosscorrelation_spectra import convert_offset_velocity
+#from ..area_fitting.crosscorrelation_spectra import convert_offset_velocity
 from ..model_fitting.spectrum_fitting import fit_gaussians_to_all_spectra_lmfit
-from ..model_fitting.debug_plot_random_fits import debug_random_fits, save_all_fits_to_pdf, save_log_spectra_pdf
+from ..model_fitting.debug_plot_random_fits import debug_random_fits, save_all_fits_to_pdf
+
 
 def measure_spectra_properties(
     spectra,
@@ -26,7 +29,7 @@ def measure_spectra_properties(
 ):
     """
     Apply physical measurements to spectra.
-    Works for real AND simulated spectra.
+    Works for real and simulated spectra.
     """
     print(f"INFO:Crosscorrelation to reference spectrum")
     offsets, fpeaks = crosscorrelate_spectra_unified(
@@ -77,6 +80,11 @@ def measure_spectra_properties(
         analysis_table[:5].pprint()
         analysis_table[-5:].pprint()
 
+        print("INFO: Calculating velocity dispersion")
+
+        analysis_table = calculate_dispersion(config_parameters, analysis_table)
+        
+
         if debug_level==3 and not real_cube_measured:
             print("Saving a PDF with all models and residual for visual inspection")
             save_all_fits_to_pdf(
@@ -88,5 +96,6 @@ def measure_spectra_properties(
                 output_pdf=output_dir_path / "modelfit_residuals_spectra.pdf",
                 ncols=2,
                 nrows=2)
+            
 
     return analysis_table
