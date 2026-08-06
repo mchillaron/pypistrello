@@ -286,29 +286,7 @@ def crosscorrelate_spectra_datacube(cube_data, wavelength, config_parameters):
     return offsets_pixel_array, fpeak_croscorr_array
 
 
-def convert_offset_velocity(offsets_pixel_array, wavelength,
-                            redshift, line_restframe):
-    
-    """
-    Convert pixel offsets into velocity.
 
-    Parameters
-    ----------
-    offsets : ndarray (N,)
-    wavelength : ndarray (n_lambda,)
-    """
-
-    dlambda_dp = np.mean(np.diff(wavelength)) # Å/pixel o nm/pixel
-    lambda_obs = np.array(line_restframe) * (1 + redshift)
-
-    # Considering linear wavelength axis:
-    delta_lambda = offsets_pixel_array * dlambda_dp
-    c_kms = 299792.458
-    velocity_array = c_kms * delta_lambda / lambda_obs
-    print(f"INFO: The velocity values for every offset have been calculated: {velocity_array} km/s")
-    print(f"INFO: Velocity computed for {len(velocity_array)} spectra")
-
-    return velocity_array
 
 
 

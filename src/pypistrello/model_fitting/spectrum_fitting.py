@@ -324,7 +324,6 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
     spectrum_sub = spectrum - continuum
 
     # Select fitting region
-    #lmin, lmax = config["reg_fitting"]
     model_name = config.get("model", "gaussian").lower()
 
     if model in ("triplet_hanii", "double_gaussian"):
