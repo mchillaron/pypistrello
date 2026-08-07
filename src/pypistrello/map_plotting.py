@@ -12,10 +12,7 @@ from pathlib import Path
 
 import argparse
 import matplotlib.pyplot as plt
-import numpy as np
-import os
 import re
-import teareduce as tea
 
 from .file_loading.load_yaml_file import load_yaml_file
 from .file_loading.load_fits_table import load_fits_table
@@ -27,7 +24,7 @@ MAGENTA = "\033[95m"
 BOLD = "\033[1m"
 RESET   = "\033[0m"
 
-def map_plotting(working_dir, fits_path, config_path, output_dir_path, map_choice, bin_map_data=None):
+def map_plotting(working_dir, fits_path, config_path, output_dir_path, map_choice): #bin_map_data=None
     """
     Generate and plot maps from spectral line analysis results.
 
@@ -68,7 +65,7 @@ def map_plotting(working_dir, fits_path, config_path, output_dir_path, map_choic
     table, wcs = load_fits_table(fits_path)
 
     # Plotting function
-    make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_choice, bin_map_data)
+    make_a_map(table, wcs, config_parameters, working_dir, output_dir_path, map_choice) #bin_map_data
     print("INFO: Map created!")
 
 
@@ -76,14 +73,13 @@ def main():
     parser = argparse.ArgumentParser(description='Plotting maps from analysed spectra using PyPistrello: Python Package for Integrating Spectral lines using Trapezoids, Error estimation and Line-features Optimization.')
     parser.add_argument('-t', '--input-file', type=str, required=True, help='FITS table with results from spectral lines analysis.')
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for plotting')
-    parser.add_argument('-b', '--bin-map', action='store_true', help='Indicates that the input table contains binned data instead of individual spaxels. If this flag is not set, the program will assume the table contains individual spaxels.')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
-    parser.add_argument( "--map", type=str, required=True, choices=["flux", "vel", "snr", "voronoi", "sigma"], help="Choose the type of map: flux, vel, snr, voronoi, sigma" )
+    parser.add_argument( "--map", type=str, required=True, choices=["flux", "vel", "snr", "voronoi", "sigma", "EW"], help="Choose the type of map: flux, vel, snr, voronoi, sigma, EW" )
     args = parser.parse_args()
 
     fits_filename = args.input_file
     config_filename = args.config_file
-    bin_map = args.bin_map
+    #bin_map = args.bin_map
     output_dir = args.output_dir
     map_choice = args.map
     
@@ -115,26 +111,7 @@ def main():
         raise FileNotFoundError(f"Configuration file '{config_filename}' does not exist. Please provide a valid file path." ) 
     if not re.search(r"\.ya?ml$", config_filename, re.IGNORECASE): 
         raise ValueError( f"Configuration file '{config_filename}' is not a YAML file. Please provide a valid YAML file." )
-    
-    # BIN-MAP PROTECTIONS
-    if bin_map:
 
-        print(f"{MAGENTA}INFO:{RESET} Bin map mode activated. The program will expect the input FITS table to contain binned data instead of individual spaxels.")
-        # check that the file bin_map.fits exists in the working directory
-        bin_map_path = working_dir / "bin_map.fits"
-        if not bin_map_path.is_file():
-            raise FileNotFoundError(f"Bin map file 'bin_map.fits' does not exist. Make sure to provide a valid bin map file.")
-
-        # read the bin map file and check that it contains a "bin_id" column
-        with fits.open(bin_map_path) as hdul:
-            bin_map_data = hdul[0].data
-            bin_map_header = hdul[0].header
-            #if "bin_id" not in bin_map_header:
-            #    raise ValueError(f"Bin map file 'bin_map.fits' does not contain a 'bin_id' column in the header. Make sure to provide a valid bin map file with the required 'bin_id' column.")
-            
-    else:
-        print(f"{MAGENTA}INFO:{RESET} Individual spaxels mode activated. The program will expect the input FITS table to contain individual spaxels.")
-        bin_map_data = None
         
     # OUTPUT PROTECTIONS
     # make sure the output does not contain extensions because it is a directory
@@ -157,7 +134,7 @@ def main():
         print(f"{GREEN}INFO:{RESET} Created output directory: {output_dir}")
 
     print(f"{GREEN}INFO:{RESET} All inputs validated. Starting map generation...")
-    map_plotting(working_dir, fits_path, config_path, output_dir_path, map_choice, bin_map_data)
+    map_plotting(working_dir, fits_path, config_path, output_dir_path, map_choice) #bin_map_data
 
 
 if __name__ == "__main__":
