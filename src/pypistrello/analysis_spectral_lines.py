@@ -29,6 +29,8 @@ from .diagnostic_plot.plot_diagnostic_spectra import plot_diagnostic_spectra
 from .area_fitting.main_trapz_fitting import main_trapz_fitting
 from .area_fitting.area_trapz_spectra_bin import area_trapz_spectra_bin
 from .analysis_tools.measure_spectra_properties import measure_spectra_properties
+from .analysis_tools.calculate_kinematics import calculate_equivalent_width
+from .model_fitting.array_dictionary import columns_to_copy
 
 from .simulated_data.process_simulations import process_simulations
 from .simulated_data.compute_sim_snr import compute_sim_snr
@@ -209,16 +211,12 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
         
         # Saving the analysis table with information for every spaxel
         if run_voronoi:
-            columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
-                               "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",
-                               "velocity", "offsets", "sigmavel_AA", "sigmavel_AA_corr", "sigmavel_kms", "sigmavel_kms_corr",
-                               "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
-                               "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total,"
-                               "amp1", "amp2", "mu1", "mu2", "area1", "area2", "area_total", "sigmavel1_AA", "sigmavel1_AA_corr", "sigmavel1_kms", "sigmavel1_kms_corr", "sigmavel2_AA", "sigmavel2_AA_corr", "sigmavel2_kms", "sigmavel2_kms_corr"]
-            
             table_collapsed = propagate_bin_to_spaxel_table(table_results_fitting, analysis_table, columns_to_copy)
         else:
             table_collapsed = analysis_table
+
+        print("INFO: Calculating equivalent width")
+        table_collapsed = calculate_equivalent_width(table_collapsed)
         
         save_table_with_wcs_extension(
             table_collapsed,

@@ -16,6 +16,7 @@ from ..voronoi_binning.sum_spectra_voronoi import sum_spectra_voronoi
 from ..voronoi_binning.propagate_bin_to_spaxel import propagate_bin_to_spaxel_table
 from ..analysis_tools.measure_spectra_properties import measure_spectra_properties
 from ..area_fitting.area_trapz_spectra_bin import area_trapz_spectra_bin
+from ..model_fitting.array_dictionary import columns_to_copy
 
 import numpy as np
 
@@ -106,13 +107,19 @@ def process_simulated_cube(
         analysis_table_sim = measure_spectra_properties(spectra_sim, wavelength_range, config_parameters,
                                                         analysis_table_sim, redshift, line_restframe, real_cube_measured=real_cube_measured)
         if pow is not None:
-            columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
-                               "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
-                               "velocity", "offsets",
-                               "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
-                               "amp_ha", "amp_nii6548", "amp_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total,"
-                               "amp1", "amp2", "mu1", "mu2", "area1", "area2", "area_total"]
-            
+            #columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
+            #                   "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",  #"bin_snr_simulated",
+            #                   "velocity", "offsets",
+            #                   "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
+            #                   "amp_ha", "amp_nii6548", "amp_nii6583", "mu_nii6548", "mu_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total",
+            #                   "amp_line1", "amp_line2", "mu_line1", "mu_line2", "area_line1", "area_line2", "area_total", 
+            #                   "sigmavel_gauss_AA", "sigmavel_gauss_AA_corr", "sigmavel_gauss_kms", "sigmavel_gauss_kms_corr",
+            #                    "sigmavel_line1_AA", "sigmavel_line1_AA_corr", "sigmavel_line1_kms", "sigmavel_line1_kms_corr", 
+            #                    "sigmavel_line2_AA", "sigmavel_line2_AA_corr", "sigmavel_line2_kms", "sigmavel_line2_kms_corr",
+            #                    "sigmavel_ha_AA", "sigmavel_ha_AA_corr", "sigmavel_ha_kms", "sigmavel_ha_kms_corr",
+            #                    "sigmavel_nii6548_AA", "sigmavel_nii6548_AA_corr", "sigmavel_nii6548_kms", "sigmavel_nii6548_kms_corr",
+            #                    "sigmavel_nii6583_AA", "sigmavel_nii6583_AA_corr", "sigmavel_nii6583_kms", "sigmavel_nii6583_kms_corr"]
+
             results_sim_table = propagate_bin_to_spaxel_table(table_spaxels, analysis_table_sim, columns_to_copy)
         else: # case pow_sim=None
             results_sim_table = analysis_table_sim
