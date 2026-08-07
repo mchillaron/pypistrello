@@ -89,8 +89,8 @@ COLUMN_NAMES = {
     "double_gaussian": {
         "amp_line1": "amp_line1",
         "amp_line2": "amp_line2",
-        "mu_line1": "mu_line1_gauss",
-        "mu_line2": "mu_line2_gauss",
+        "mu_line1": "mu_line1",
+        "mu_line2": "mu_line2",
         "sigma": "sigma_gauss",
         "area_line1": "area_line1",
         "area_line2": "area_line2",

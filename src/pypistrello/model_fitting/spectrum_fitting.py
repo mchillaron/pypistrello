@@ -76,7 +76,7 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
             "center": resolve_guess(guesses.get("center"), mu_auto),
             "sigma": resolve_guess(guesses.get("sigma"), sigma_auto),
         }
-        print("INFO: initial guess model created before fitting")
+        #print("INFO: initial guess model created before fitting")
 
     elif model_name == "gaussian_area_fixed":
         model_func = gaussian_area_fixed_lmfit

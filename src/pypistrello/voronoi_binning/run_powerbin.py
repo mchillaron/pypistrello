@@ -107,7 +107,7 @@ def run_powerbin(table_results_fitting, config_parameters,
     print(f"Running PowerBin with target S/N = {target_sn}")
     pow = PowerBin(xy, capacity_spec, target_capacity=target_sn**2, verbose=1)
     
-    if debug_level > 1:
+    if debug_level > 0:
         pow.plot(capacity_scale="sqrt", ylabel="S/N")
         plt.show(block=True)
 
@@ -200,7 +200,7 @@ def run_powerbin_noneg(table_results_fitting, config_parameters, debug_level=0, 
     pow = PowerBin(xy, capacity_spec, target_capacity=target_sn**2, verbose=1)
     
     # The binning is performed on (S/N)^2, but for plotting we use S/N.
-    if debug_level > 1:
+    if debug_level > 0:
         pow.plot(capacity_scale='sqrt', ylabel='S/N')
         plt.show(block=True)
 

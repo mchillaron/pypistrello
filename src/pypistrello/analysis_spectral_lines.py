@@ -173,7 +173,7 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
             analysis_table = build_voronoi_table(table_results_fitting, pow)
             spectra = cube_binned   # (n_lambda, n_bins)
 
-            if debug_level > 1:
+            if debug_level > 2:
                 save_voronoi_bin_spectra_pdf(
                     spectra=cube_binned,
                     wavelength=wavelength_range,
