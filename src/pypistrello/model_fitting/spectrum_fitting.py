@@ -238,7 +238,10 @@ def extract_gaussian_result(result):
 def extract_triplet_result(result):
 
     sigma = result.params["sigma"].value
-    mu = result.params["center"].value
+    mu = result.params["center"].value      #Halpha center
+
+    mu_nii6583 = mu + (6583.0 - 6562.8)
+    mu_nii6548 = mu + (6548.0 - 6562.8)
 
     gauss_norm = sigma * np.sqrt(2*np.pi)
 
@@ -257,7 +260,9 @@ def extract_triplet_result(result):
         "amp_nii6548": amp_nii6548,
         "amp_nii6583": amp_nii6583,
 
-        "mu": mu,
+        "mu_ha": mu,
+        "mu_nii6548": mu_nii6548,
+        "mu_nii6583": mu_nii6583,
         "sigma": sigma,
 
         "area_ha": area_ha,
@@ -272,25 +277,25 @@ def extract_triplet_result(result):
 def extract_double_gaussian_result(result):
     
     sigma = result.params["sigma"].value
-    mu1 = result.params["center"].value
+    mu_line1 = result.params["center"].value
     delta = result.params["delta_lambda"].value
-    mu2 = mu1 + delta
+    mu_line2 = mu_line1 + delta
 
-    area1 = result.params["area"].value
-    amp1 = area1/(sigma*np.sqrt(2*np.pi))
+    area_line1 = result.params["area"].value
+    amp_line1 = area_line1/(sigma*np.sqrt(2*np.pi))
 
-    amp2 = result.params["amp2"].value
-    area2 = amp2*sigma*np.sqrt(2*np.pi)
+    amp_line2 = result.params["amp2"].value
+    area_line2 = amp_line2*sigma*np.sqrt(2*np.pi)
 
     return {
-        "amp1": amp1,
-        "amp2": amp2,
-        "mu1": mu1,
-        "mu2": mu2,
+        "amp_line1": amp_line1,
+        "amp_line2": amp_line2,
+        "mu_line1": mu_line1,
+        "mu_line2": mu_line2,
         "sigma": sigma,
-        "area1": area1,
-        "area2": area2,
-        "area_total": area1 + area2,
+        "area_line1": area_line1,
+        "area_line2": area_line2,
+        "area_total": area_line1 + area_line2,
         "chi2": result.chisqr,
         "residuals": result.residual,
     }
