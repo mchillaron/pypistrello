@@ -9,7 +9,7 @@
 
 import astropy.units as u
 
-from .calculate_kinematics import convert_offset_velocity, calculate_dispersion
+from .calculate_kinematics import convert_offset_velocity, calculate_dispersion, calculate_equivalent_width
 from ..area_fitting.crosscorrelation_spectra import crosscorrelate_spectra_unified
 #from ..area_fitting.crosscorrelation_spectra import convert_offset_velocity
 from ..model_fitting.spectrum_fitting import fit_gaussians_to_all_spectra_lmfit
@@ -83,7 +83,6 @@ def measure_spectra_properties(
         print("INFO: Calculating velocity dispersion")
 
         analysis_table = calculate_dispersion(config_parameters, analysis_table)
-        
 
         if debug_level==3 and not real_cube_measured:
             print("Saving a PDF with all models and residual for visual inspection")
@@ -96,6 +95,5 @@ def measure_spectra_properties(
                 output_pdf=output_dir_path / "modelfit_residuals_spectra.pdf",
                 ncols=2,
                 nrows=2)
-            
 
     return analysis_table
