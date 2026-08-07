@@ -10,6 +10,7 @@
 from cmap import Colormap
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import TwoSlopeNorm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,11 +19,10 @@ import teareduce as tea
 
 from .build_2d_map import build_2d_map
 from .calculate_contours_flux import prepare_map_for_contours, compute_contour_levels, save_processed_map, draw_contours, load_processed_map
-from .build_map_from_bins import build_map_from_bins
 
 
 def make_a_map(table, wcs, config_parameters, working_dir,
-               output_dir_path, map_choice, bin_map=None):
+               output_dir_path, map_choice):
     """
     Create a 2D map from tabular data and apply visualization settings.
 
@@ -56,8 +56,10 @@ def make_a_map(table, wcs, config_parameters, working_dir,
         yaml_key = "voronoi_map"
     elif map_choice == "sigma":
         yaml_key = "sigma_map"
+    elif map_choice == "EW":
+        yaml_key = "equivalent_width_map"
     else:
-        raise ValueError("map_choice must be 'flux', 'vel', 'sigma', 'snr' or 'voronoi'")
+        raise ValueError("map_choice must be 'flux', 'vel', 'sigma', 'snr', 'voronoi' or 'EW'")
 
     params = config_parameters[yaml_key]
 
@@ -69,27 +71,23 @@ def make_a_map(table, wcs, config_parameters, working_dir,
     zscale_factor = params.get("zscale_factor", 0.05)
 
     cmap_name = params.get("cmap", "viridis")
+    colorbar_loc = params.get("colorbar_loc", "right")
     print(f"[INFO] Colormap: {cmap_name}")
     cmap = Colormap(cmap_name).to_mpl()
 
     data_column = params["data_column"]
 
     # Build the map
-    if bin_map is not None:
-        print("INFO: Building map from Voronoi bins")
-        zi = build_map_from_bins(bin_map, table, data_column)
+    print("INFO: Building map from individual spaxels")
+    x = table["x"]
+    y = table["y"]
+    data = table[data_column]
 
-    else:
-        print("INFO: Building map from individual spaxels")
-        x = table["x"]
-        y = table["y"]
-        data = table[data_column]
-
-        zi = build_2d_map(
-            x, y, data,
-            interpolate=interpolate,
-            method=interp_method
-        )
+    zi = build_2d_map(
+        x, y, data,
+        interpolate=interpolate,
+        method=interp_method
+    )
 
     print(f"Map shape: {zi.shape}")
 
@@ -104,6 +102,12 @@ def make_a_map(table, wcs, config_parameters, working_dir,
         ax = plt.subplot()
         ax.set_xlabel("X [pix]")
         ax.set_ylabel("Y [pix]")
+
+    ax.tick_params(
+        direction="in",
+        length=6,
+        width=1.2,
+    )
 
     # Color scaling
     vmin = params.get("vmin")
@@ -127,45 +131,48 @@ def make_a_map(table, wcs, config_parameters, working_dir,
         im = ax.imshow(zi, origin="lower", cmap=cmap, vmin=vmin, vmax=vmax)
 
     # colorbar
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label(params.get("colorbar_label", ""))
+    #cbar = plt.colorbar(im, ax=ax, pad=0.0, location=colorbar_loc)
+    #cbar.set_label(params.get("colorbar_label", ""))
 
+    if colorbar_loc == "right":
+
+        cax = ax.inset_axes([1.00, 0.0, 0.05, 1.0], transform=ax.transAxes,)
+
+        cbar = fig.colorbar(im, cax=cax, orientation="vertical",)
+        cbar.set_label(params.get("colorbar_label", ""))
+
+    elif colorbar_loc == "top":
+
+        cax = ax.inset_axes([0.0, 1.00, 1.0, 0.05], transform=ax.transAxes,)
+
+        cbar = fig.colorbar(im, cax=cax, orientation="horizontal",)
+        cbar.set_label(params.get("colorbar_label", ""))
+
+        cbar.ax.xaxis.set_ticks_position("top")
+        cbar.ax.xaxis.set_label_position("top")
+
+    else:
+        raise ValueError("colorbar_loc must be 'right' or 'top'")
+
+    
     if params.get("calculate_contours", False):
-        contour_image, contour_mask = prepare_map_for_contours(
-            zi,
-            smooth_sigma=params.get("smooth_sigma", 1.0),
-            fill_nan=True,
-        )
 
-        contour_levels = compute_contour_levels(
-            contour_image,
-            params,
-        )
+        contour_image, contour_mask = prepare_map_for_contours(zi, smooth_sigma=params.get("smooth_sigma", 1.0), fill_nan=True,)
+        contour_levels = compute_contour_levels(contour_image, params,)
 
-        save_processed_map(
-            working_dir / f"{map_choice}_contours.npz",
-            contour_image,
-            contour_levels,
-        )
+        save_processed_map(working_dir / f"{map_choice}_contours.npz", contour_image, contour_levels,)
 
-        draw_contours(
-            ax,
-            contour_image,
-            contour_levels,
+        draw_contours(ax, contour_image, contour_levels,
             colors=params.get("contours_color", "black"),
             linewidths=params.get("contours_linewidth", 1.0),
+            contours_outlined=params.get("contours_outlined", True)
         )
 
     if params.get("add_flux_contours", False):
 
-        image, levels = load_processed_map(
-            working_dir / params["flux_contour_file"]
-        )
+        image, levels = load_processed_map(working_dir / params["flux_contour_file"])
 
-        draw_contours(
-            ax,
-            image,
-            levels,
+        draw_contours(ax, image, levels,
             colors=params.get("contours_color", "black"),
             linewidths=params.get("contours_linewidth", 1.0),
             contours_outlined=params.get("contours_outlined", False)

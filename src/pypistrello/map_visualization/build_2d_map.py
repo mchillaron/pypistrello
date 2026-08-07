@@ -43,8 +43,22 @@ def build_2d_map(x, y, values, interpolate=True, method="nearest"):
         assigned data are filled with NaN.
     """
 
-    x = np.asarray(x).astype(int) - 1 # convert from FITS to Python indexes
+    #x = np.asarray(x).astype(int) - 1 
+    #y = np.asarray(y).astype(int) - 1
+
+    x = np.asarray(x).astype(int) - 1   # convert from FITS to Python indexes
     y = np.asarray(y).astype(int) - 1
+    values = np.asarray(values)
+
+    good = (
+        np.isfinite(x)
+        & np.isfinite(y)
+        & np.isfinite(values)
+    )
+
+    x = x[good]
+    y = y[good]
+    values = values[good]
 
     nx = x.max() + 1
     ny = y.max() + 1
