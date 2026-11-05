@@ -8,9 +8,12 @@
 #
 
 from astropy.io import fits
+from rich.console import Console
+from rich.logging import RichHandler
 from pathlib import Path
 
 import argparse
+import logging
 
 import numpy as np
 import os
@@ -48,6 +51,9 @@ BLUE    = "\033[94m"
 MAGENTA = "\033[95m"
 BOLD = "\033[1m"
 RESET   = "\033[0m"
+
+console = Console()
+logger = logging.getLogger("pypistrello")
 
 def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_path, config_path, table_path,
                             simulation_dir_path, debug_level, run_voronoi, start):
@@ -315,15 +321,17 @@ def analysis_spectral_lines(working_dir, fits_path, data_extension, output_dir_p
 
 def main():
     start = time.perf_counter()
-    parser = argparse.ArgumentParser(description='Python Package for Integrating Spectral lines using Trapezoids, Error estimation and Line-features Optimization.')
+    parser = argparse.ArgumentParser(description='Python Package for Integrating Spectral lines using Trapezoids, Error estimation and Line-fLuxfeatures Optimization.')
     parser.add_argument('-F', '--input-file', type=str, required=True, help='FITS datacube filename to work with.')
     parser.add_argument('-ext', '--data-extension', type=int, required=True, help='FITS extension number where data is found (>= 0).')
     parser.add_argument('-c', '--config-file', type=str, required=True, help='Configuration YAML filename with parameters for analysis')
     parser.add_argument('-o', '--output-dir', type=str, required=True, help='Output directory to save results')
-    parser.add_argument('-t', '--table', type=str, help='Name of FITS table where to save the line-fit parameters. Include .fits extension.')
+    parser.add_argument('-t', '--table', type=str, required=True, help='Name of FITS table where to save the line-fit parameters. Include .fits extension.')
     parser.add_argument('-vor', '--voronoi-tessellation', action='store_true', help='Whether to run Voronoi tessellation and binning of spectra with Powerbin.')
     parser.add_argument('-sim', '--simulations-dir', type=str, help='Directory name where simulated data is found.')
     parser.add_argument('--debug', type=int, default=0, help='Debug level (default: 0). Higher values (1 and 2) may print more detailed information for debugging purposes.')
+    parser.add_argument("--log-level", type=str.upper, choices=["DEBUG","INFO","WARNING","ERROR","CRITICAL",],default="INFO",help="Logging verbosity level.",)
+
     args = parser.parse_args()
 
     fits_filename = args.input_file
@@ -339,9 +347,35 @@ def main():
     #print(f"{BOLD}-----------------------------  PyPISTRELLO  ------------------------------")
     print(f"{BOLD} \U0001F987 Welcome to PyPISTRELLO \U0001F987")
     print(" Python Program for Integrating Spectral lines using TRapezoids,")
-    print(f" Error estimation and Line-features Optimization {RESET}")
+    print(f" Error estimation and Line-fLux features Optimization {RESET}")
     #print(f"--------------------------------------------------------------------------{RESET}")
     print("\n")
+
+    # Logging configuration
+    if args.log_level in ["DEBUG","INFO","WARNING","ERROR","CRITICAL"]:
+        handlers = [
+            RichHandler(
+                console=console,
+                show_time=False,
+                show_level=True,
+                show_path=True,
+                markup=True,
+                rich_tracebacks=True,
+            )
+        ]
+    else:
+        handlers = [
+            RichHandler(
+                console=console,
+                show_time=False,
+                show_level=False,
+                show_path=False,
+                markup=True,
+            )
+        ]
+
+    logging.basicConfig(level=args.log_level, format="%(message)s", handlers=handlers, force=True,)
+    logging.getLogger("matplotlib").setLevel(logging.ERROR)
 
 
     working_dir = Path('.').resolve()
@@ -363,7 +397,6 @@ def main():
     # DATA EXTENSION
     if data_extension < 0:
         raise ValueError(f"Invalid extension number of '{data_extension}': must be >= 0")
-    print(f"Extracting data from extension {data_extension} of the FITS file.")
     
     # OUTPUT
     # make sure the output does not contain extensions because it is a directory
