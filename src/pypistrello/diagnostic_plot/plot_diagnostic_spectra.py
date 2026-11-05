@@ -76,6 +76,10 @@ def plot_diagnostic_spectra(
     line_restframe = np.array(line_restframe)
 
     integrated_spectrum = calculate_integrated_spectrum(cube_data, wavelength_range, reg_int_spec)
+    bad = ~np.isfinite(integrated_spectrum)
+    print(f"DEBUG: {bad.sum()} / {bad.size} non-finite channels in the integrated spectrum")
+    if bad.any():
+        print(f"DEBUG: first non-finite wavelengths: {wavelength_range[bad][:10]}")
 
     state = {
         "mode": None,           # a / c / x
@@ -131,7 +135,12 @@ def plot_diagnostic_spectra(
         ax.grid(False)
 
     def set_ylims(ax, flux):
-        ymin, ymax = flux.min(), flux.max()
+        finite = flux[np.isfinite(flux)]
+        if finite.size == 0:
+            print("WARNING: no finite flux values in this range; y-limits not set.")
+            return
+        #ymin, ymax = flux.min(), flux.max()
+        ymin, ymax = finite.min(), finite.max()
         pad = (ymax - ymin) * y_pad if ymax > ymin else 1.0
         ax.set_ylim(ymin - pad, ymax + pad)
 

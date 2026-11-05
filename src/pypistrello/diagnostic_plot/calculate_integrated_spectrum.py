@@ -55,11 +55,17 @@ def calculate_integrated_spectrum(cube_data, wavelength_range, diagnostic_spectr
         raise ValueError("Selected region is outside cube boundaries.")
 
     subcube = cube_data[:, y1:y2+1, x1:x2+1]
-    integrated_spectrum = np.sum(subcube, axis=(1, 2)) # Sum over spatial dimensions (y, x)
-    n_spectra = (y2 - y1 + 1) * (x2 - x1 + 1)
 
-    if n_spectra == 0:
-        raise RuntimeError("No spectra found in selected region.")
+    # Sum ignoring NaN; channels with no valid pixel at all stay NaN (not 0)
+    integrated_spectrum = np.nansum(subcube, axis=(1, 2))
+    n_valid = np.sum(np.isfinite(subcube), axis=(1, 2))
+    integrated_spectrum[n_valid == 0] = np.nan
+
+    n_spectra = (y2 - y1 + 1) * (x2 - x1 + 1)
+    n_partial = np.sum((n_valid > 0) & (n_valid < n_spectra))
+    if n_partial > 0:
+        print(f"WARNING: {n_partial} channels have only some valid spaxels; "
+              "their integrated flux is underestimated.")
 
     print(f"INFO: Integrated {n_spectra} spectra.")
     return integrated_spectrum
