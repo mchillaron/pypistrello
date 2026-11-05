@@ -9,24 +9,47 @@
 
 import numpy as np
 from .fit_continuum_model import fit_continuum
-from .line_models import gaussian_lmfit, gaussian_area_fixed_lmfit, double_gaussian_lmfit, triplet_HaNII_lmfit
+from .line_models import gaussian_lmfit, gaussian_area_fixed_lmfit, double_gaussian_lmfit, triplet_HaNII_lmfit, narrow_broad_lmfit
 from .line_models import fit_model_lmfit
 from .array_dictionary import FIELDS, COLUMN_NAMES, EMPTY_RESULTS
+
+SQRT2PI = np.sqrt(2 * np.pi)
+
+# Rest-frame wavelengths, defined ONCE and imported everywhere
+# (model functions, extractors, plots)
+HA_REST = 6562.80
+NII6548_REST = 6548.05
+NII6583_REST = 6583.45
+
+# Models that need the wider window 'reg_fitting_gaussians'
+WIDE_WINDOW_MODELS = ("triplet_hanii", "double_gaussian", "narrow_broad")
 
 def estimate_sigma(x, y):
     """
     Estimate sigma from second moment of the line.
     """
-
     y = y - np.nanmin(y)    # remove negative values
-
     if np.sum(y) <= 0:
         return 1.0
 
     mean = np.sum(x * y) / np.sum(y)                # flux mass centroid
     var = np.sum(y * (x - mean)**2) / np.sum(y)     # pondered variance
-
     return np.sqrt(var)
+
+# The second moment from estimate_sigma is dominated by the wings, 
+# so it’s a poor guess for the narrow core. 
+# A half-maximum width works better for the narrow part:
+def estimate_sigma_fwhm(x, y):
+    """Sigma from the FWHM of the peak (good for the narrow core)."""
+    i = np.nanargmax(y)
+    half = y[i] / 2.0
+    left, right = i, i
+    while left > 0 and y[left - 1] >= half:
+        left -= 1
+    while right < len(y) - 1 and y[right + 1] >= half:
+        right += 1
+    fwhm = x[right] - x[left] + np.median(np.diff(x))
+    return fwhm / 2.3548 if fwhm > 0 else None
 
 def resolve_guess(value, default):
     """
@@ -207,6 +230,39 @@ def get_model_and_initial_params(config, x, y, wavelength, index, analysis_table
             "amp_nii6583": resolve_guess(guesses.get("amp"), np.nanmax(y)/40), #maximum divided by 40 to start fitting from a low amplitude for NII, helps convergence
         }
 
+    elif model_name == "narrow_broad":
+
+        model_func = narrow_broad_lmfit
+        if index == 0:
+            print("INFO: The chosen model is NARROW + BROAD Gaussian")
+
+        guesses = config.get("initial_guesses", {})
+        nb_cfg = config.get("narrow_broad", {})
+
+        lambda_obs = config["line_restframe"][0] * (1 + config["redshift"])
+        if analysis_table is not None and "offsets" in analysis_table.colnames:
+            dlambda = np.mean(np.diff(wavelength))
+            mu_auto = lambda_obs + analysis_table["offsets"][index] * dlambda
+        else:
+            mu_auto = x[np.nanargmax(y)]
+
+        sigma_moment = estimate_sigma(x, y)              # dominated by wings
+        sigma_core = estimate_sigma_fwhm(x, y) or 0.5 * sigma_moment
+        sigma_n0 = resolve_guess(guesses.get("sigma"), sigma_core)
+        sigma_b0 = max(2.0 * sigma_n0, sigma_moment)
+
+        col = "bin_area_trapz" if "bin_area_trapz" in analysis_table.colnames else "area_trapz"
+        area0 = analysis_table[col][index]
+
+        p0 = {
+            "area": area0,
+            "frac_broad": nb_cfg.get("frac_broad_init", 0.3),
+            "center": resolve_guess(guesses.get("center"), mu_auto),
+            "sigma": sigma_n0,
+            "delta_center": 0.0,
+            "delta_sigma": sigma_b0 - sigma_n0,
+        }
+
     else:
         raise ValueError(f"Model '{model_name}' not implemented")
 
@@ -300,6 +356,35 @@ def extract_double_gaussian_result(result):
         "residuals": result.residual,
     }
 
+def extract_narrow_broad_result(result):
+    p = result.params
+    sigma_n = p["sigma"].value
+    sigma_b = sigma_n + p["delta_sigma"].value
+    mu_n = p["center"].value
+    mu_b = mu_n + p["delta_center"].value
+
+    area_total = p["area"].value
+    frac = p["frac_broad"].value
+    area_b = frac * area_total
+    area_n = (1.0 - frac) * area_total
+
+    return {
+        "amp_narrow": area_n / (sigma_n * SQRT2PI),
+        "amp_broad": area_b / (sigma_b * SQRT2PI),
+        "mu_narrow": mu_n,
+        "mu_broad": mu_b,
+        "sigma": sigma_n,             # keep 'sigma' = narrow, for fwhm/dispersion
+        "sigma_broad": sigma_b,
+        "area_narrow": area_n,
+        "area_broad": area_b,
+        "area_total": area_total,
+        "frac_broad": frac,
+        "frac_broad_err": p["frac_broad"].stderr if p["frac_broad"].stderr is not None else np.nan,
+        "chi2": result.chisqr,
+        "bic": result.bic,
+        "residuals": result.residual,
+    }
+
 RESULT_EXTRACTORS = {
 
     "gaussian": extract_gaussian_result,
@@ -309,6 +394,8 @@ RESULT_EXTRACTORS = {
     "triplet_hanii": extract_triplet_result,
 
     "double_gaussian": extract_double_gaussian_result,
+
+    "narrow_broad": extract_narrow_broad_result,
 
 }
 
@@ -331,7 +418,7 @@ def fit_gaussian_spectrum_lmfit(wavelength, spectrum, config, index=None, analys
     # Select fitting region
     model_name = config.get("model", "gaussian").lower()
 
-    if model in ("triplet_hanii", "double_gaussian"):
+    if model in ("triplet_hanii", "double_gaussian", "narrow_broad"):
         lmin, lmax = config.get("reg_fitting_gaussians",
                                 config["reg_fitting"])
     else:
@@ -427,6 +514,8 @@ def fit_gaussians_to_all_spectra_lmfit(
         analysis_table[column] = arrays[key]
 
     analysis_table["fwhm"] = 2.355 * arrays["sigma"]
+    if "sigma_broad" in arrays:
+        analysis_table["fwhm_broad"] = 2.355 * arrays["sigma_broad"]
 
     print("INFO: Gaussian fitting completed")
 

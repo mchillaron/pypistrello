@@ -16,7 +16,219 @@ from .line_models import fit_model_lmfit
 from .spectrum_fitting import get_model_and_initial_params
 
 
+SQRT2PI = np.sqrt(2 * np.pi)
+
+# Rest-frame wavelengths, defined ONCE and imported everywhere
+# (model functions, extractors, plots)
+HA_REST = 6562.80
+NII6548_REST = 6548.05
+NII6583_REST = 6583.45
+
+# Models that need the wider window 'reg_fitting_gaussians'
+WIDE_WINDOW_MODELS = ("triplet_hanii", "double_gaussian", "narrow_broad")
+
+
+def get_fitting_window(config):
+    """Return (lmin, lmax) of the fitting region for the chosen model."""
+    model_name = config.get("model", "gaussian").lower()
+    if model_name in WIDE_WINDOW_MODELS:
+        return config.get("reg_fitting_gaussians", config["reg_fitting"])
+    return config["reg_fitting"]
+
+
+def _gauss(x, amp, mu, sigma):
+    return amp * np.exp(-0.5 * ((x - mu) / sigma)**2)
+
+
+def get_model_components(model_name, result, x):
+    """
+    Individual components of a fitted model evaluated on x.
+    Returns a dict {label: array}. Empty dict for single-component models.
+    """
+    p = result.params
+
+    if model_name == "triplet_hanii":
+        mu, s = p["center"].value, p["sigma"].value
+        amp_ha = p["area"].value / (s * SQRT2PI)
+        amp_6583 = p["amp_nii6583"].value
+        return {
+            "Hα": _gauss(x, amp_ha, mu, s),
+            "[NII]6548": _gauss(x, amp_6583 / 3.0, mu - (HA_REST - NII6548_REST), s),
+            "[NII]6583": _gauss(x, amp_6583, mu + (NII6583_REST - HA_REST), s),
+        }
+
+    if model_name == "double_gaussian":
+        mu, s = p["center"].value, p["sigma"].value
+        amp1 = p["area"].value / (s * SQRT2PI)
+        return {
+            "Line 1": _gauss(x, amp1, mu, s),
+            "Line 2": _gauss(x, p["amp2"].value, mu + p["delta_lambda"].value, s),
+        }
+
+    if model_name == "narrow_broad":
+        s_n = p["sigma"].value
+        s_b = s_n + p["delta_sigma"].value
+        mu_n = p["center"].value
+        mu_b = mu_n + p["delta_center"].value
+        area, frac = p["area"].value, p["frac_broad"].value
+        return {
+            "Narrow": _gauss(x, (1 - frac) * area / (s_n * SQRT2PI), mu_n, s_n),
+            "Broad": _gauss(x, frac * area / (s_b * SQRT2PI), mu_b, s_b),
+        }
+
+    return {}   # gaussian, gaussian_area_fixed
+
+
+def get_plot_grid(model_name, result, x, config, n=2000):
+    """Fine wavelength grid to draw a smooth model."""
+    p = result.params
+
+    if model_name == "triplet_hanii":
+        mu, s = p["center"].value, p["sigma"].value
+        lo = mu - (HA_REST - NII6548_REST) - 5 * s
+        hi = mu + (NII6583_REST - HA_REST) + 5 * s
+    elif model_name == "narrow_broad":
+        s_b = p["sigma"].value + p["delta_sigma"].value
+        mu_b = p["center"].value + p["delta_center"].value
+        lo = min(x.min(), mu_b - 5 * s_b)
+        hi = max(x.max(), mu_b + 5 * s_b)
+    elif model_name == "double_gaussian":
+        lo, hi = config.get("reg_fitting_gaussians", config["reg_fitting"])
+    else:
+        lo, hi = x.min(), x.max()
+
+    return np.linspace(lo, hi, n)
+
+
 def debug_random_fits(
+    spectra,
+    wavelength,
+    analysis_table,
+    config,
+    offsets,
+    n_examples=10
+):
+    """
+    Plot random spectra with continuum + model fit (and its components) for debugging.
+    Works for any model registered in get_model_components / get_plot_grid.
+    """
+
+    print(f"INFO: Generating {n_examples} debug plots")
+
+    n_spec = spectra.shape[1]
+    idx_random = np.random.choice(n_spec, size=min(n_examples, n_spec), replace=False)
+
+    zoom = config.get("zoom_plot", [wavelength.min(), wavelength.max()])
+    ypad = config.get("y_padding", 0.1)
+    model_name = config.get("model", "gaussian").lower()
+    lmin, lmax = get_fitting_window(config)
+    zoom_mask = (wavelength >= zoom[0]) & (wavelength <= zoom[1])
+
+    for i in idx_random:
+
+        spec = spectra[:, i]
+
+        continuum_model = fit_continuum(wavelength, spec, config)
+        if continuum_model is None:
+            continue
+
+        continuum = continuum_model(wavelength)
+        spec_sub = spec - continuum
+
+        # Fitting region
+        mask = (wavelength >= lmin) & (wavelength <= lmax)
+        x = wavelength[mask]
+        y = spec_sub[mask]
+
+        valid = np.isfinite(x) & np.isfinite(y)
+        x = x[valid]
+        y = y[valid]
+
+        if len(x) < 5:
+            continue
+
+        model_func, p0 = get_model_and_initial_params(config, x, y, wavelength, i, analysis_table)
+        result = fit_model_lmfit(x, y, model_func, p0, config)
+
+        if result is None:
+            continue
+
+        # Smooth model and components
+        x_fine = get_plot_grid(model_name, result, x, config)
+        y_fine = result.eval(x=x_fine)
+        cont_fine = continuum_model(x_fine)
+        components = get_model_components(model_name, result, x_fine)
+
+        # Residuals
+        model_full = np.zeros_like(wavelength)
+        model_full[mask] = result.eval(x=wavelength[mask])
+        spec_clean = spec_sub - model_full
+
+        residuals = y - result.eval(x=x)
+        rms = np.sqrt(np.mean(residuals**2))
+
+        # Plot
+        fig, (ax1, ax2) = plt.subplots(
+            2, 1,
+            figsize=(8, 6),
+            sharex=True,
+            gridspec_kw={"height_ratios": [3, 1]}
+        )
+
+        # Top panel: spectrum + fit + components
+        ax1.plot(wavelength, spec, color="black", alpha=0.5, label="Spectrum")
+        ax1.plot(wavelength, continuum, "--", label="Continuum")
+        ax1.plot(x_fine, y_fine + cont_fine, linewidth=2, alpha=0.8, label="Model fit")
+
+        for label, comp in components.items():
+            ax1.plot(x_fine, comp + cont_fine, "--", lw=1.5, alpha=0.8, label=label)
+
+        ax1.set_xlim(zoom)
+        ymin = np.nanmin(spec[zoom_mask])
+        ymax = np.nanmax(spec[zoom_mask])
+        dy = ymax - ymin
+        ax1.set_ylim(ymin - ypad * dy, ymax + ypad * dy)
+
+        ax1.tick_params(direction='in', which='both', top=True, right=True)
+        ax1.minorticks_on()
+        ax1.set_title(f"Spectrum {i}{_fit_summary(model_name, result)}")
+        ax1.legend()
+
+        # Bottom panel: residuals
+        ax2.axhline(0, linestyle="--")
+        ax2.plot(wavelength, spec_clean, alpha=0.4, label="Spectrum - model")
+        ax2.plot(x, residuals, linewidth=1.7, color="hotpink", label="Fit residuals")
+        ax2.axvspan(lmin, lmax, alpha=0.1)
+
+        ax2.set_xlim(zoom)
+        ax2.set_ylabel("Residuals")
+        ax2.set_xlabel("Wavelength")
+        ax2.set_title(f"RMS = {rms:.3e}")
+
+        rmin, rmax = np.nanmin(residuals), np.nanmax(residuals)
+        rdy = rmax - rmin if rmax > rmin else 1.0
+        ax2.set_ylim(rmin - 0.1 * rdy, rmax + 0.1 * rdy)
+
+        ax2.tick_params(direction='in', which='both', top=True, right=True)
+        ax2.minorticks_on()
+
+        plt.tight_layout()
+        plt.show()
+
+
+def _fit_summary(model_name, result):
+    """Short text with the key fitted values, appended to the plot title."""
+    p = result.params
+    if model_name == "narrow_broad":
+        s_n = p["sigma"].value
+        s_b = s_n + p["delta_sigma"].value
+        return (f"  |  f_broad = {p['frac_broad'].value:.2f}, "
+                f"σ_n = {s_n:.2f} Å, σ_b = {s_b:.2f} Å, BIC = {result.bic:.1f}")
+    return f"  |  σ = {p['sigma'].value:.2f} Å"
+
+
+
+def debug_random_fits_old(
     spectra,
     wavelength,
     analysis_table,

@@ -50,6 +50,22 @@ FIELDS = {
         "area_total",
         "chi2",
     ],
+
+    "narrow_broad": [
+        "amp_narrow",
+        "amp_broad",
+        "mu_narrow",
+        "mu_broad",
+        "sigma",            # narrow sigma (kept as 'sigma' for fwhm/dispersion)
+        "sigma_broad",
+        "area_narrow",
+        "area_broad",
+        "area_total",
+        "frac_broad",
+        "frac_broad_err",
+        "chi2",
+        "bic",
+    ],
 }
 
 
@@ -97,6 +113,22 @@ COLUMN_NAMES = {
         "area_total": "area_total",
         "chi2": "chi2_gauss",
     },
+
+    "narrow_broad": {
+        "amp_narrow": "amp_narrow",
+        "amp_broad": "amp_broad",
+        "mu_narrow": "mu_gauss",
+        "mu_broad": "mu_broad",
+        "sigma": "sigma_gauss",
+        "sigma_broad": "sigma_broad",
+        "area_narrow": "area_narrow",
+        "area_broad": "area_broad",
+        "area_total": "area_total",
+        "frac_broad": "frac_broad",
+        "frac_broad_err": "frac_broad_err",
+        "chi2": "chi2_gauss",
+        "bic": "bic_gauss",
+    },
 }
 
 EMPTY_RESULTS = {
@@ -142,15 +174,33 @@ EMPTY_RESULTS = {
         "area_line2",
         "area_total",
         "chi2",
-    ]
+    ],
+
+    "narrow_broad": [
+        "amp_narrow",
+        "amp_broad",
+        "mu_narrow",
+        "mu_broad",
+        "sigma",
+        "sigma_broad",
+        "area_narrow",
+        "area_broad",
+        "area_total",
+        "frac_broad",
+        "frac_broad_err",
+        "chi2",
+        "bic",
+    ],
 }
 
 columns_to_copy = ["n_pix", "bin_center_x", "bin_center_y", 
                     "bin_area_trapz","bin_cont_noise","bin_snr_trapz","bin_cont_coeffs",
                     "velocity", "offsets", 
                     "amp_gauss", "mu_gauss", "sigma_gauss", "fwhm", "cont_gauss", "area_gauss", "chi2_gauss",
-                    "amp_ha", "amp_nii6548", "amp_nii6583", "mu_nii6548", "mu_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total",
-                    "amp_line1", "amp_line2", "mu_line1", "mu_line2", "area_line1", "area_line2", "area_total", 
+                    "amp_ha", "amp_nii6548", "amp_nii6583", "mu_nii6548", "mu_nii6583", "area_ha", "area_nii6548", "area_nii6583", "area_total", 
+                    "amp_line1", "amp_line2", "mu_line1", "mu_line2", "area_line1", "area_line2", 
+                    "amp_narrow", "amp_broad", "mu_broad", "sigma_broad", "fwhm_broad",
+                    "area_narrow", "area_broad", "frac_broad", "frac_broad_err", "bic_gauss",
                     "sigmavel_gauss_AA", "sigmavel_gauss_AA_corr", "sigmavel_gauss_kms", "sigmavel_gauss_kms_corr",
                     "sigmavel_line1_AA", "sigmavel_line1_AA_corr", "sigmavel_line1_kms", "sigmavel_line1_kms_corr", 
                     "sigmavel_line2_AA", "sigmavel_line2_AA_corr", "sigmavel_line2_kms", "sigmavel_line2_kms_corr",

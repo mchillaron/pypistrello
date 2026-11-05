@@ -78,6 +78,28 @@ def triplet_HaNII_lmfit(x, area, amp_nii6583, center, sigma):
     return g_ha + g_6548 + g_6583
 
 
+SQRT2PI = np.sqrt(2 * np.pi)
+def narrow_broad_lmfit(x, area, frac_broad, center, sigma, delta_center, delta_sigma):
+    """
+    Narrow + broad Gaussian for a single line (continuum already removed).
+
+    area         : total area of both components
+    frac_broad   : fraction of the total area in the broad component [0, 1]
+    center       : center of the narrow component
+    sigma        : sigma of the narrow component
+    delta_center : center_broad - center_narrow
+    delta_sigma  : sigma_broad - sigma_narrow (> 0, avoids label switching)
+    """
+    sigma_b = sigma + delta_sigma
+    center_b = center + delta_center
+
+    amp_n = (1.0 - frac_broad) * area / (sigma * SQRT2PI)
+    amp_b = frac_broad * area / (sigma_b * SQRT2PI)
+
+    g_n = amp_n * np.exp(-0.5 * ((x - center) / sigma)**2)
+    g_b = amp_b * np.exp(-0.5 * ((x - center_b) / sigma_b)**2)
+    return g_n + g_b
+
 
 def fit_model_lmfit(x, y, model_func, p0, config):
     """
@@ -120,11 +142,33 @@ def fit_model_lmfit(x, y, model_func, p0, config):
     if "area" in params:
         params["area"].vary = False  # Ensure area is fixed
 
-    if config["model"].lower() == "double_gaussian":
-        if "area1" in params:
-            area0 = params["area1"].value
-            params["area1"].min = 0.8 * area0
-            params["area1"].max = 1.2 * area0
+    if config["model"].lower() == "narrow_broad":
+        nb_cfg = config.get("narrow_broad", {})
+
+        fix_area = nb_cfg.get("fix_total_area", False)
+        params["area"].vary = not fix_area
+        if not fix_area:
+            params["area"].min = 0.0
+
+        params["frac_broad"].set(min=0.0, max=1.0)
+        params["delta_sigma"].set(min=nb_cfg.get("min_delta_sigma", 0.5))
+
+        if nb_cfg.get("tie_centers", False):
+            params["delta_center"].set(value=0.0, vary=False)
+        else:
+            dc = nb_cfg.get("max_delta_center", 5.0)
+            params["delta_center"].set(min=-dc, max=dc)
+
+        # narrow component cannot be narrower than the instrumental resolution
+        lambda_obs = config["line_restframe"][0] * (1 + config["redshift"])
+        sigma_instr = lambda_obs / config["instr_resolution"] / 2.3548
+        params["sigma"].min = max(params["sigma"].min, 0.8 * sigma_instr)
+
+    #if config["model"].lower() == "double_gaussian":
+    #    if "area1" in params:
+    #        area0 = params["area1"].value
+    #        params["area1"].min = 0.8 * area0
+    #        params["area1"].max = 1.2 * area0
             
     try:
         result = model.fit(y, params, x=x)
